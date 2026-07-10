@@ -329,6 +329,16 @@ function estimatePhase(flux, hopSec, beatPeriod, subdiv){
 function yieldToBrowser(){
   return new Promise(resolve=>setTimeout(resolve,0));
 }
+// Background song analysis (FFT chunks) competes with the game loop for the
+// main thread. On a phone's weaker CPU this was enough to make gameplay
+// stutter or appear to freeze, since all built-in songs keep analyzing in
+// the background even while a song is being played. Pause entirely while
+// the play screen is active, and resume once back at the title/result screen.
+async function waitWhilePlaying(){
+  while(screens.play.classList.contains('active')){
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+}
 async function analyzeBuffer(audioBuffer, onProgress){
   const sr=audioBuffer.sampleRate;
   const ch0=audioBuffer.getChannelData(0);
@@ -337,7 +347,14 @@ async function analyzeBuffer(audioBuffer, onProgress){
   let mono;
   if(ch1){
     mono=new Float32Array(len);
-    for(let i=0;i<len;i++) mono[i]=(ch0[i]+ch1[i])*0.5;
+    const MIX_CHUNK=2_000_000;
+    for(let i=0;i<len;i++){
+      mono[i]=(ch0[i]+ch1[i])*0.5;
+      if(i>0 && i%MIX_CHUNK===0){
+        await yieldToBrowser();
+        await waitWhilePlaying();
+      }
+    }
   } else {
     mono=ch0;
   }
@@ -357,7 +374,7 @@ async function analyzeBuffer(audioBuffer, onProgress){
   // Heaviest step (an FFT per frame): processed in chunks and yielded back to
   // the browser between them so long recordings don't freeze the tab and the
   // song list can show live progress instead of looking stuck.
-  const CHUNK=1500;
+  const CHUNK=500;
   for(let f=0; f<numFrames; f++){
     const start=f*HOP;
     for(let i=0;i<FFT_SIZE;i++){ reBuf[i]=mono[start+i]*win[i]; imBuf[i]=0; }
@@ -378,6 +395,7 @@ async function analyzeBuffer(audioBuffer, onProgress){
     if(f>0 && f%CHUNK===0){
       if(onProgress) onProgress(f/numFrames*0.95);
       await yieldToBrowser();
+      await waitWhilePlaying();
     }
   }
   if(onProgress) onProgress(0.95);
@@ -508,6 +526,7 @@ function buildEmbeddedSongsList(){
 async function analyzeBuiltIns(){
   for(const song of builtInSongs){
     if(song.analyzed) continue;
+    await waitWhilePlaying();
     try{
       const arrBuf=await song.blob.arrayBuffer();
       const audioBuffer=await getAudioCtx().decodeAudioData(arrBuf);
