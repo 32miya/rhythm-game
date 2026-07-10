@@ -64,10 +64,12 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #rankBig.pop{animation:rankPop 420ms cubic-bezier(.2,1.4,.4,1);}
 #judgeDisplay{position:absolute;bottom:34%;left:0;right:0;text-align:center;font-size:22px;font-weight:800;pointer-events:none;opacity:0;letter-spacing:2px;}
 #pauseBtn{position:absolute;top:10px;right:14px;background:rgba(255,255,255,.08);border:none;color:#eef0ff;font-size:16px;border-radius:999px;width:36px;height:36px;z-index:5;}
+#lifeGaugeWrap{position:absolute;top:0;left:0;right:0;height:5px;background:rgba(255,255,255,.08);z-index:6;}
+#lifeGaugeFill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#5ce18a,#3fd6ff,#7c4dff);transition:width .25s ease-out;}
 #touchZones{position:absolute;left:0;right:0;bottom:0;top:0;display:flex;z-index:3;}
 .tzone{flex:1;border-left:1px solid rgba(255,255,255,.03);display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(6% + env(safe-area-inset-bottom));transition:background .08s;}
 .tzone:first-child{border-left:none;}
-.tzone .keycap{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#0a0a14;opacity:.9;pointer-events:none;}
+.tzone .keycap{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#0a0a14;opacity:.9;pointer-events:none;}
 .tzone.active{background:rgba(255,255,255,.06);}
 #pauseOverlay{position:absolute;inset:0;background:rgba(5,5,12,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:10;}
 #pauseOverlay.hidden{display:none;}
@@ -119,11 +121,14 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
     <div id="comboWrap"><div id="comboDisplay"><span id="comboNum">0</span><span class="combo-label">COMBO</span></div></div>
     <div id="judgeDisplay"></div>
     <button id="pauseBtn">⏸</button>
+    <div id="lifeGaugeWrap"><div id="lifeGaugeFill"></div></div>
     <div id="touchZones">
-      <div class="tzone" data-lane="0"><div class="keycap">D</div></div>
-      <div class="tzone" data-lane="1"><div class="keycap">F</div></div>
-      <div class="tzone" data-lane="2"><div class="keycap">J</div></div>
-      <div class="tzone" data-lane="3"><div class="keycap">K</div></div>
+      <div class="tzone" data-lane="0"><div class="keycap">S</div></div>
+      <div class="tzone" data-lane="1"><div class="keycap">D</div></div>
+      <div class="tzone" data-lane="2"><div class="keycap">F</div></div>
+      <div class="tzone" data-lane="3"><div class="keycap">J</div></div>
+      <div class="tzone" data-lane="4"><div class="keycap">K</div></div>
+      <div class="tzone" data-lane="5"><div class="keycap">L</div></div>
     </div>
     <div id="pauseOverlay" class="hidden">
       <h2 style="font-size:18px;letter-spacing:4px;color:#9aa0c0;">PAUSE</h2>
@@ -416,17 +421,20 @@ async function analyzeBuffer(audioBuffer, onProgress){
     .sort((a,b)=>a.time-b.time);
 
   const brights=onsets.map(o=>o.brightness).slice().sort((a,b)=>a-b);
-  function qtile(p){
-    if(brights.length===0) return 0;
-    const idx=Math.min(brights.length-1,Math.floor(p*(brights.length-1)));
-    return brights[idx];
+  const weights=onsets.map(o=>o.weight).slice().sort((a,b)=>a-b);
+  function tileOf(sorted,p){
+    if(sorted.length===0) return 0;
+    const idx=Math.min(sorted.length-1,Math.floor(p*(sorted.length-1)));
+    return sorted[idx];
   }
-  const q1=qtile(0.25), q2=qtile(0.5), q3=qtile(0.75);
+  const laneBounds=[];
+  for(let i=1;i<LANE_COUNT;i++) laneBounds.push(tileOf(brights, i/LANE_COUNT));
+  const criticalThreshold=tileOf(weights, CRITICAL_PERCENTILE);
   for(const o of onsets){
-    if(o.brightness<=q1) o.lane=0;
-    else if(o.brightness<=q2) o.lane=1;
-    else if(o.brightness<=q3) o.lane=2;
-    else o.lane=3;
+    let lane=0;
+    while(lane<laneBounds.length && o.brightness>laneBounds[lane]) lane++;
+    o.lane=Math.min(lane, LANE_COUNT-1);
+    o.critical = o.weight>=criticalThreshold;
   }
   if(onProgress) onProgress(1);
   return onsets;
@@ -451,7 +459,7 @@ function buildChartNotes(onsets, difficulty){
   let last=-Infinity;
   for(const o of onsets){
     if(o.weight>=threshold && (o.time-last)>=params.minGap){
-      notes.push({time:o.time, lane:o.lane, judged:false, result:null});
+      notes.push({time:o.time, lane:o.lane, judged:false, result:null, critical:!!o.critical});
       last=o.time;
     }
   }
@@ -677,10 +685,17 @@ dropzone.addEventListener('drop', e=>{
 
 /* ================= Gameplay ================= */
 const LEAD_TIME=1.6;      // seconds a note takes to fall from top to hit line
-const HIT_WINDOW=0.12;    // outer judge window (Good)
-const PERFECT_WINDOW=0.045;
-const LANE_COLORS=['#ff4d6d','#ffd23f','#3fd6ff','#7c4dff'];
-const LANE_KEYS=['d','f','j','k'];
+const LANE_COUNT=6;
+// Project SEKAI-style 4-tier judgment (Perfect/Great/Good/Bad) + Miss.
+// Only Miss breaks combo; Bad still keeps it alive, matching the reference game.
+const PERFECT_WINDOW=0.04;
+const GREAT_WINDOW=0.08;
+const GOOD_WINDOW=0.12;
+const BAD_WINDOW=0.18;
+const CRITICAL_PERCENTILE=0.88; // top ~12% of onset weight becomes a gold "Critical" note
+const LANE_COLORS=['#ff4d6d','#ff9f4d','#ffd23f','#5ce18a','#3fd6ff','#7c4dff'];
+const LANE_KEYS=['s','d','f','j','k','l'];
+const JUDGE_COLORS={perfect:'#ffd23f',great:'#3fd6ff',good:'#5ce18a',bad:'#b0b0c8',miss:'#ff5566'};
 
 /* ---------- Perspective "road" projection ----------
    Notes travel from a vanishing point near the horizon toward the
@@ -701,7 +716,7 @@ function perspectiveAt(p, W, H){
   };
 }
 function laneCenterX(lane, halfWidth, W){
-  const frac=(lane+0.5)/4-0.5; // -0.375 .. 0.375
+  const frac=(lane+0.5)/LANE_COUNT-0.5;
   return W/2 + frac*2*halfWidth;
 }
 function hexToRgba(hex, alpha){
@@ -713,7 +728,7 @@ let game=null; // active game session state
 
 function computeChart(song, difficulty){
   const notes=buildChartNotes(song.onsets, difficulty).sort((a,b)=>a.time-b.time);
-  const notesByLane=[[],[],[],[]];
+  const notesByLane=Array.from({length:LANE_COUNT},()=>[]);
   for(const n of notes) notesByLane[n.lane].push(n);
   return {notes, notesByLane};
 }
@@ -753,8 +768,9 @@ async function startPlay(song, difficulty){
     lastFrameMs:performance.now(),
     roadPhase:0,
     score:0, combo:0, maxCombo:0,
-    counts:{perfect:0, good:0, miss:0},
-    lanePtr:[0,0,0,0],
+    counts:{perfect:0, great:0, good:0, bad:0, miss:0},
+    life:80,
+    lanePtr:new Array(LANE_COUNT).fill(0),
     drawIdx:0,
     judgePopup:{text:'', t:-999},
     paused:false,
@@ -767,6 +783,7 @@ async function startPlay(song, difficulty){
   document.getElementById('songNameHud').textContent=song.name+' / '+DIFF_PARAMS[difficulty].label;
   document.getElementById('scoreDisplay').textContent='0';
   document.getElementById('comboDisplay').style.display='none';
+  document.getElementById('lifeGaugeFill').style.width='80%';
   document.getElementById('pauseOverlay').classList.add('hidden');
   showScreen('play');
   resizeCanvas();
@@ -785,12 +802,15 @@ function judgeLane(lane){
   while(ptr<list.length && list[ptr].judged) ptr++;
   if(ptr<list.length){
     const note=list[ptr];
-    const diff=note.time - t;
-    if(Math.abs(diff)<=HIT_WINDOW){
+    const diff=Math.abs(note.time - t);
+    if(diff<=BAD_WINDOW){
       note.judged=true;
-      const result=Math.abs(diff)<=PERFECT_WINDOW ? 'perfect' : 'good';
+      const result = diff<=PERFECT_WINDOW ? 'perfect'
+        : diff<=GREAT_WINDOW ? 'great'
+        : diff<=GOOD_WINDOW ? 'good'
+        : 'bad';
       note.result=result;
-      applyJudge(result, lane);
+      applyJudge(result, lane, note.critical);
       ptr++;
     }
   }
@@ -816,26 +836,45 @@ function spawnHitParticles(lane, color, count){
   }
 }
 
-function applyJudge(result, lane){
+function applyJudge(result, lane, critical){
+  const critMult=critical?1.5:1;
+  const particleColor=critical?'#ffe98a':LANE_COLORS[lane];
   if(result==='perfect'){
     game.combo++;
-    game.score += 300 + Math.min(game.combo,50)*2;
+    game.score+=Math.round((300+Math.min(game.combo,50)*2)*critMult);
     game.counts.perfect++;
-    showJudge('PERFECT','#3fd6ff');
-    spawnHitParticles(lane, LANE_COLORS[lane], 14);
+    game.life=Math.min(100, game.life+0.4);
+    showJudge('PERFECT', JUDGE_COLORS.perfect);
+    spawnHitParticles(lane, particleColor, critical?20:14);
+  } else if(result==='great'){
+    game.combo++;
+    game.score+=Math.round((180+Math.min(game.combo,50)*1.4)*critMult);
+    game.counts.great++;
+    game.life=Math.min(100, game.life+0.2);
+    showJudge('GREAT', JUDGE_COLORS.great);
+    spawnHitParticles(lane, particleColor, critical?16:10);
   } else if(result==='good'){
     game.combo++;
-    game.score += 100 + Math.min(game.combo,50);
+    game.score+=Math.round((90+Math.min(game.combo,50)*0.8)*critMult);
     game.counts.good++;
-    showJudge('GOOD','#ffd23f');
-    spawnHitParticles(lane, LANE_COLORS[lane], 7);
+    showJudge('GOOD', JUDGE_COLORS.good);
+    spawnHitParticles(lane, particleColor, 5);
+  } else if(result==='bad'){
+    // Bad still keeps combo alive (Project SEKAI-style) - only Miss breaks it.
+    game.combo++;
+    game.score+=Math.round(30*critMult);
+    game.counts.bad++;
+    game.life=Math.max(0, game.life-1.2);
+    showJudge('BAD', JUDGE_COLORS.bad);
   } else {
     game.combo=0;
     game.counts.miss++;
-    showJudge('MISS','#ff5566');
+    game.life=Math.max(0, game.life-3);
+    showJudge('MISS', JUDGE_COLORS.miss);
   }
   game.maxCombo=Math.max(game.maxCombo, game.combo);
   document.getElementById('scoreDisplay').textContent=String(game.score);
+  document.getElementById('lifeGaugeFill').style.width=game.life+'%';
   const comboEl=document.getElementById('comboDisplay');
   if(game.combo>=2){
     comboEl.style.display='block';
@@ -931,12 +970,12 @@ function draw(){
   ctx2d.fill();
 
   // lane divider lines converging to the vanishing point
-  for(let b=0;b<=4;b++){
-    const frac=b/4-0.5;
+  for(let b=0;b<=LANE_COUNT;b++){
+    const frac=b/LANE_COUNT-0.5;
     const xFar=W/2+frac*2*far.halfWidth;
     const xNear=W/2+frac*2*near.halfWidth;
-    ctx2d.strokeStyle= (b===0||b===4) ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.08)';
-    ctx2d.lineWidth= (b===0||b===4) ? 2 : 1;
+    ctx2d.strokeStyle= (b===0||b===LANE_COUNT) ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.08)';
+    ctx2d.lineWidth= (b===0||b===LANE_COUNT) ? 2 : 1;
     ctx2d.beginPath();
     ctx2d.moveTo(xFar,horizonY);
     ctx2d.lineTo(xNear,hitLineY);
@@ -975,39 +1014,56 @@ function draw(){
     const n=notes[i];
     const until=n.time - t;
     if(until > LEAD_TIME+0.1) break;
-    if(!n.judged && until < -HIT_WINDOW){
+    if(!n.judged && until < -BAD_WINDOW){
       n.judged=true; n.result='miss';
-      applyJudge('miss', n.lane);
+      applyJudge('miss', n.lane, n.critical);
     }
     if(n.judged && n.result!=='miss') continue;
     if(n.judged && until < -0.3) continue;
 
     const p=1-Math.max(0,Math.min(1, until/LEAD_TIME));
     const persp=perspectiveAt(p, W, H);
-    const laneWidthAtP=persp.halfWidth*2/4;
+    const laneWidthAtP=persp.halfWidth*2/LANE_COUNT;
     const x=laneCenterX(n.lane, persp.halfWidth, W);
     const y=persp.y;
-    const noteW=laneWidthAtP*0.72;
-    const noteH=Math.max(8, H*0.032*persp.scale);
+    const noteW=laneWidthAtP*0.78;
+    const noteH=Math.max(8, H*(n.critical?0.038:0.032)*persp.scale);
     if(y < horizonY-20 || y > hitLineY+40) continue;
 
+    const baseColor= n.critical ? '#ffd23f' : LANE_COLORS[n.lane];
+
     if(!n.judged){
-      const glowR=noteW*1.1;
+      const glowR=noteW*(n.critical?1.5:1.1);
       const noteGlow=ctx2d.createRadialGradient(x,y,0,x,y,glowR);
-      noteGlow.addColorStop(0, hexToRgba(LANE_COLORS[n.lane], 0.45*persp.scale));
-      noteGlow.addColorStop(1, hexToRgba(LANE_COLORS[n.lane], 0));
+      noteGlow.addColorStop(0, hexToRgba(baseColor, (n.critical?0.65:0.45)*persp.scale));
+      noteGlow.addColorStop(1, hexToRgba(baseColor, 0));
       ctx2d.fillStyle=noteGlow;
       ctx2d.beginPath();
       ctx2d.arc(x,y,glowR,0,Math.PI*2);
       ctx2d.fill();
     }
 
-    ctx2d.fillStyle= n.judged ? 'rgba(255,85,102,.5)' : LANE_COLORS[n.lane];
-    ctx2d.shadowColor=LANE_COLORS[n.lane];
-    ctx2d.shadowBlur= n.judged? 0 : 10*persp.scale;
+    if(n.judged){
+      ctx2d.fillStyle='rgba(255,85,102,.5)';
+    } else if(n.critical){
+      const critGrad=ctx2d.createLinearGradient(x-noteW/2,y,x+noteW/2,y);
+      critGrad.addColorStop(0,'#ffd23f');
+      critGrad.addColorStop(0.5,'#fff6cc');
+      critGrad.addColorStop(1,'#ffd23f');
+      ctx2d.fillStyle=critGrad;
+    } else {
+      ctx2d.fillStyle=LANE_COLORS[n.lane];
+    }
+    ctx2d.shadowColor=baseColor;
+    ctx2d.shadowBlur= n.judged? 0 : (n.critical?18:10)*persp.scale;
     ctx2d.beginPath();
     ctx2d.roundRect(x-noteW/2, y-noteH/2, noteW, noteH, Math.max(3,8*persp.scale));
     ctx2d.fill();
+    if(n.critical && !n.judged){
+      ctx2d.strokeStyle='rgba(255,255,255,.85)';
+      ctx2d.lineWidth=Math.max(1,1.5*persp.scale);
+      ctx2d.stroke();
+    }
     ctx2d.shadowBlur=0;
   }
 
@@ -1028,8 +1084,8 @@ function draw(){
   }
   ctx2d.globalAlpha=1;
 
-  for(let lane=0; lane<4; lane++){
-    const laneWidthNear=near.halfWidth*2/4;
+  for(let lane=0; lane<LANE_COUNT; lane++){
+    const laneWidthNear=near.halfWidth*2/LANE_COUNT;
     const x=laneCenterX(lane, near.halfWidth, W);
     ctx2d.fillStyle=LANE_COLORS[lane];
     ctx2d.globalAlpha=0.9;
@@ -1123,7 +1179,8 @@ function endPlay(){
   if(!game || game.ended) return;
   game.ended=true;
   const total=game.chart.notes.length;
-  const acc = total>0 ? ((game.counts.perfect + game.counts.good*0.5)/total*100) : 100;
+  const c=game.counts;
+  const acc = total>0 ? ((c.perfect*1 + c.great*0.8 + c.good*0.5 + c.bad*0.2)/total*100) : 100;
   let rank='D';
   if(acc>=95) rank='S';
   else if(acc>=85) rank='A';
@@ -1141,9 +1198,11 @@ function endPlay(){
     '<div class="row"><span>スコア</span><b>'+game.score+'</b></div>'+
     '<div class="row"><span>最大コンボ</span><b>'+game.maxCombo+'</b></div>'+
     '<div class="row"><span>精度</span><b>'+acc.toFixed(1)+'%</b></div>'+
-    '<div class="row"><span>PERFECT</span><b>'+game.counts.perfect+'</b></div>'+
-    '<div class="row"><span>GOOD</span><b>'+game.counts.good+'</b></div>'+
-    '<div class="row"><span>MISS</span><b>'+game.counts.miss+'</b></div>';
+    '<div class="row"><span>PERFECT</span><b>'+c.perfect+'</b></div>'+
+    '<div class="row"><span>GREAT</span><b>'+c.great+'</b></div>'+
+    '<div class="row"><span>GOOD</span><b>'+c.good+'</b></div>'+
+    '<div class="row"><span>BAD</span><b>'+c.bad+'</b></div>'+
+    '<div class="row"><span>MISS</span><b>'+c.miss+'</b></div>';
 
   const lastSong=game.song, lastDiff=game.difficulty;
   document.getElementById('retryBtn').onclick=()=>startPlay(lastSong,lastDiff);
