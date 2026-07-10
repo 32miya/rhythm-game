@@ -8,7 +8,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>リズムビート・スタジオ</title>
+<title>リズムビート</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0a14;overscroll-behavior:none;font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;color:#eef0ff;}
@@ -21,10 +21,6 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #screen-title{overflow-y:auto;padding:24px 18px 40px;}
 #screen-title h1{font-size:26px;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#3fd6ff,#7c4dff);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:1px;}
 #screen-title .subtitle{color:#9aa0c0;font-size:13px;margin-top:6px;margin-bottom:20px;}
-#dropzone{border:2px dashed #3a3a5a;border-radius:14px;padding:20px;text-align:center;transition:border-color .15s,background .15s;}
-#dropzone.dragover{border-color:#7c4dff;background:rgba(124,77,255,.12);}
-#addBtn{background:linear-gradient(90deg,#7c4dff,#3fd6ff);color:#0a0a14;border:none;border-radius:999px;padding:12px 26px;font-size:15px;font-weight:700;cursor:pointer;}
-#addBtn:active{transform:scale(.97);}
 .volume-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
 .volume-label{font-size:13px;color:#c6caee;white-space:nowrap;}
 .volume-value{font-size:13px;color:#9aa0c0;min-width:2.2em;text-align:right;}
@@ -32,25 +28,18 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 .volume-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:linear-gradient(90deg,#7c4dff,#3fd6ff);cursor:pointer;border:2px solid #eef0ff;}
 .volume-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:linear-gradient(90deg,#7c4dff,#3fd6ff);cursor:pointer;border:2px solid #eef0ff;}
 #pauseOverlay .volume-row{width:70%;max-width:280px;margin-bottom:4px;}
-#dropzone .hint{margin-top:10px;font-size:12px;color:#7a80a5;}
-#addProgress{margin-top:12px;font-size:13px;color:#3fd6ff;min-height:18px;}
 #songList{margin-top:22px;display:flex;flex-direction:column;gap:12px;}
 .empty-hint{color:#6a6f90;font-size:13px;text-align:center;padding:30px 10px;}
 .song-card{background:#141428;border:1px solid #23234a;border-radius:14px;padding:14px 16px;}
 .song-card .song-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
 .song-card .song-name{font-size:15px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.song-card .badge{display:inline-block;background:#7c4dff;color:#fff;font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px;margin-right:2px;vertical-align:middle;}
 .song-card .song-meta{font-size:11px;color:#8288ad;margin-top:2px;}
-.song-card .del-btn{background:none;border:none;color:#5a5f80;font-size:18px;padding:4px 8px;cursor:pointer;}
 .diff-row{display:flex;gap:8px;margin-top:10px;}
 .diff-btn{flex:1;border:none;border-radius:10px;padding:10px 4px;font-size:12px;font-weight:700;cursor:pointer;color:#0a0a14;}
 .diff-btn small{display:block;font-weight:400;font-size:10px;opacity:.75;margin-top:2px;}
 .diff-easy{background:#5ce18a;}
 .diff-normal{background:#ffd23f;}
 .diff-hard{background:#ff5566;color:#fff;}
-.export-row{display:flex;gap:8px;margin-top:8px;}
-.export-btn{flex:1;background:none;border:1px solid #2c2c54;border-radius:8px;padding:6px 4px;font-size:11px;color:#9aa0c0;cursor:pointer;}
-.export-btn:active{background:rgba(255,255,255,.06);}
 
 /* ---------- Play screen ---------- */
 #screen-play{background:#05050c;}
@@ -97,18 +86,12 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 <div id="app">
 
   <div id="screen-title" class="screen active">
-    <h1>リズムビート・スタジオ</h1>
-    <p class="subtitle">好きな音源を追加して、自動生成された譜面でリズムゲームが遊べます</p>
+    <h1>リズムビート</h1>
+    <p class="subtitle">収録曲を選んでリズムゲームを楽しもう</p>
     <div id="volumeRow" class="volume-row">
       <span class="volume-label">🔊 音量</span>
       <input type="range" class="volume-slider" id="volumeSliderTitle" min="1" max="10" step="1">
       <span class="volume-value" id="volumeValueTitle">10</span>
-    </div>
-    <div id="dropzone">
-      <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac" multiple hidden>
-      <button id="addBtn">＋ 音源を追加</button>
-      <p class="hint">またはここに音声ファイルをドラッグ＆ドロップ（一度追加した曲は次回も使えます）</p>
-      <div id="addProgress"></div>
     </div>
     <div id="songList"></div>
   </div>
@@ -157,57 +140,10 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 
 </div>
 
-<script src="songs-data.js"></script>
-<script src="songs-data-b.js"></script>
-<script src="songs-data-c.js"></script>
-<script src="songs-data-d.js"></script>
+<script src="precomputed-songs.js"></script>
 <script>
 'use strict';
 
-/* ================= IndexedDB ================= */
-const DB_NAME='rhythmGameDB', DB_VERSION=1, STORE='songs';
-function openDB(){
-  return new Promise((resolve,reject)=>{
-    const req=indexedDB.open(DB_NAME,DB_VERSION);
-    req.onupgradeneeded=e=>{
-      const db=e.target.result;
-      if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id'});
-    };
-    req.onsuccess=()=>resolve(req.result);
-    req.onerror=()=>reject(req.error);
-  });
-}
-async function dbAll(){
-  const db=await openDB();
-  return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,'readonly');
-    const req=tx.objectStore(STORE).getAll();
-    req.onsuccess=()=>resolve(req.result);
-    req.onerror=()=>reject(req.error);
-  });
-}
-async function dbPut(record){
-  const db=await openDB();
-  return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,'readwrite');
-    tx.objectStore(STORE).put(record);
-    tx.oncomplete=()=>resolve();
-    tx.onerror=()=>reject(tx.error);
-  });
-}
-async function dbDelete(id){
-  const db=await openDB();
-  return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,'readwrite');
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete=()=>resolve();
-    tx.onerror=()=>reject(tx.error);
-  });
-}
-
-function uuid(){
-  return (crypto.randomUUID) ? crypto.randomUUID() : ('id-'+Date.now()+'-'+Math.random().toString(16).slice(2));
-}
 function formatTime(sec){
   if(!isFinite(sec)) return '--:--';
   const m=Math.floor(sec/60), s=Math.floor(sec%60);
@@ -262,325 +198,10 @@ async function getAudioBuffer(song){
   return buf;
 }
 
-/* ================= Onset detection / auto chart =================
-   Spectral-flux onset detection (real FFT per frame) + autocorrelation
-   tempo tracking, then every onset is snapped onto a 16th-note grid
-   locked to the song's own beat so falling notes stay in time with
-   the music instead of drifting on raw broadband energy noise. */
-function fftInPlace(re, im){
-  const n=re.length;
-  for(let i=1,j=0; i<n; i++){
-    let bit=n>>1;
-    for(; j&bit; bit>>=1) j^=bit;
-    j^=bit;
-    if(i<j){ let tr=re[i]; re[i]=re[j]; re[j]=tr; let ti=im[i]; im[i]=im[j]; im[j]=ti; }
-  }
-  for(let len=2; len<=n; len<<=1){
-    const ang=-2*Math.PI/len;
-    const wr=Math.cos(ang), wi=Math.sin(ang);
-    for(let i=0;i<n;i+=len){
-      let curR=1, curI=0;
-      for(let k=0;k<len/2;k++){
-        const uR=re[i+k], uI=im[i+k];
-        const vR=re[i+k+len/2]*curR - im[i+k+len/2]*curI;
-        const vI=re[i+k+len/2]*curI + im[i+k+len/2]*curR;
-        re[i+k]=uR+vR; im[i+k]=uI+vI;
-        re[i+k+len/2]=uR-vR; im[i+k+len/2]=uI-vI;
-        const nextR=curR*wr-curI*wi;
-        const nextI=curR*wi+curI*wr;
-        curR=nextR; curI=nextI;
-      }
-    }
-  }
-}
-function hannWindow(n){
-  const w=new Float32Array(n);
-  for(let i=0;i<n;i++) w[i]=0.5-0.5*Math.cos(2*Math.PI*i/(n-1));
-  return w;
-}
-function estimateTempo(flux, hopSec){
-  const minBPM=70, maxBPM=190;
-  const minLag=Math.max(1,Math.round((60/maxBPM)/hopSec));
-  const maxLag=Math.round((60/minBPM)/hopSec);
-  if(maxLag>=flux.length) return 0.5;
-  let bestLag=minLag, bestScore=-Infinity;
-  for(let lag=minLag; lag<=maxLag; lag++){
-    let score=0, count=0;
-    for(let i=0;i+lag<flux.length;i++){ score+=flux[i]*flux[i+lag]; count++; }
-    if(count>0) score/=count;
-    if(score>bestScore){ bestScore=score; bestLag=lag; }
-  }
-  return bestLag*hopSec;
-}
-function estimatePhase(flux, hopSec, beatPeriod, subdiv){
-  const step=beatPeriod/subdiv;
-  const numFrames=flux.length;
-  const totalTime=numFrames*hopSec;
-  let bestPhase=0, bestScore=-Infinity;
-  const trials=60;
-  for(let t=0;t<trials;t++){
-    const phase=(t/trials)*beatPeriod;
-    let score=0;
-    for(let time=phase; time<totalTime; time+=step){
-      const idx=Math.round(time/hopSec);
-      if(idx>=0 && idx<numFrames) score+=flux[idx];
-    }
-    if(score>bestScore){ bestScore=score; bestPhase=phase; }
-  }
-  return bestPhase;
-}
-function yieldToBrowser(){
-  return new Promise(resolve=>setTimeout(resolve,0));
-}
-// Background song analysis (FFT chunks) competes with the game loop for the
-// main thread. On a phone's weaker CPU this was enough to make gameplay
-// stutter or appear to freeze, since all built-in songs keep analyzing in
-// the background even while a song is being played. Pause entirely while
-// the play screen is active, and resume once back at the title/result screen.
-async function waitWhilePlaying(){
-  while(screens.play.classList.contains('active')){
-    await new Promise(resolve=>setTimeout(resolve,250));
-  }
-}
-async function analyzeBuffer(audioBuffer, onProgress){
-  const sr=audioBuffer.sampleRate;
-  const ch0=audioBuffer.getChannelData(0);
-  const ch1=audioBuffer.numberOfChannels>1?audioBuffer.getChannelData(1):null;
-  const len=ch0.length;
-  let mono;
-  if(ch1){
-    mono=new Float32Array(len);
-    const MIX_CHUNK=2_000_000;
-    for(let i=0;i<len;i++){
-      mono[i]=(ch0[i]+ch1[i])*0.5;
-      if(i>0 && i%MIX_CHUNK===0){
-        await yieldToBrowser();
-        await waitWhilePlaying();
-      }
-    }
-  } else {
-    mono=ch0;
-  }
-
-  const FFT_SIZE=1024, HOP=512;
-  const numFrames=Math.max(0,Math.floor((len-FFT_SIZE)/HOP));
-  const win=hannWindow(FFT_SIZE);
-  const half=FFT_SIZE/2;
-  const prevMag=new Float32Array(half);
-  const flux=new Float32Array(numFrames);
-  const reBuf=new Float32Array(FFT_SIZE);
-  const imBuf=new Float32Array(FFT_SIZE);
-  const binFreq=new Float32Array(half);
-  for(let k=0;k<half;k++) binFreq[k]=k*sr/FFT_SIZE;
-
-  // Rhythm/melody band split, mirroring a "left = drums/bass, right = lead
-  // melody" lane layout: low frequencies (kick/bass) drive the rhythm side,
-  // mid/high frequencies (vocal/guitar) drive the melody side, and the
-  // dominant frequency within each band acts as a rough pitch proxy for
-  // choosing the sub-lane (higher pitch -> further right).
-  const LOW_BAND_MAX_HZ=200;
-  const MELODY_MIN_HZ=200, MELODY_MAX_HZ=5000;
-  // Spectral flatness is only meaningful over a musically "populated" band -
-  // computed across the full spectrum up to Nyquist, the geometric mean gets
-  // crushed to near-zero by the mostly-silent upper spectrum regardless of
-  // percussiveness, making flatness useless for classification.
-  const FLATNESS_MIN_HZ=100, FLATNESS_MAX_HZ=8000;
-  const totalEnergyArr=new Float32Array(numFrames);
-  const lowEnergyArr=new Float32Array(numFrames);
-  const lowPeakFreqArr=new Float32Array(numFrames);
-  const melodyPeakFreqArr=new Float32Array(numFrames);
-  const flatnessArr=new Float32Array(numFrames);
-  let flatnessBinCount=0;
-  for(let k=1;k<half;k++) if(binFreq[k]>=FLATNESS_MIN_HZ && binFreq[k]<=FLATNESS_MAX_HZ) flatnessBinCount++;
-
-  // Heaviest step (an FFT per frame): processed in chunks and yielded back to
-  // the browser between them so long recordings don't freeze the tab and the
-  // song list can show live progress instead of looking stuck.
-  const CHUNK=500;
-  for(let f=0; f<numFrames; f++){
-    const start=f*HOP;
-    for(let i=0;i<FFT_SIZE;i++){ reBuf[i]=mono[start+i]*win[i]; imBuf[i]=0; }
-    fftInPlace(reBuf, imBuf);
-    let fluxSum=0, energySum=0, lowEnergy=0;
-    let flatEnergySum=0, flatLogSum=0;
-    let lowPeakMag=0, lowPeakFreq=0, melodyPeakMag=0, melodyPeakFreq=0;
-    for(let k=1;k<half;k++){
-      const mag=Math.sqrt(reBuf[k]*reBuf[k]+imBuf[k]*imBuf[k]);
-      const logMag=Math.log1p(mag);
-      const diff=logMag-prevMag[k];
-      if(diff>0) fluxSum+=diff;
-      energySum+=mag;
-      prevMag[k]=logMag;
-      const f_hz=binFreq[k];
-      if(f_hz<LOW_BAND_MAX_HZ){
-        lowEnergy+=mag;
-        if(mag>lowPeakMag){ lowPeakMag=mag; lowPeakFreq=f_hz; }
-      } else if(f_hz>=MELODY_MIN_HZ && f_hz<=MELODY_MAX_HZ){
-        if(mag>melodyPeakMag){ melodyPeakMag=mag; melodyPeakFreq=f_hz; }
-      }
-      if(f_hz>=FLATNESS_MIN_HZ && f_hz<=FLATNESS_MAX_HZ){
-        flatEnergySum+=mag;
-        flatLogSum+=Math.log(mag+1e-8);
-      }
-    }
-    flux[f]=fluxSum;
-    totalEnergyArr[f]=energySum;
-    lowEnergyArr[f]=lowEnergy;
-    lowPeakFreqArr[f]=lowPeakFreq;
-    melodyPeakFreqArr[f]=melodyPeakFreq;
-    // Spectral flatness (geometric mean / arithmetic mean of the magnitude
-    // spectrum) over the populated band: near 1 for broadband/noisy content
-    // (drum hits - percussive regardless of pitch), near 0 for tonal content
-    // concentrated at a few harmonic partials (a sung note or a guitar/bass
-    // pitch).
-    const arithMean=flatEnergySum/flatnessBinCount;
-    const geoMean=Math.exp(flatLogSum/flatnessBinCount);
-    flatnessArr[f]= arithMean>1e-8 ? Math.min(1, geoMean/arithMean) : 0;
-
-    if(f>0 && f%CHUNK===0){
-      if(onProgress) onProgress(f/numFrames*0.95);
-      await yieldToBrowser();
-      await waitWhilePlaying();
-    }
-  }
-  if(onProgress) onProgress(0.95);
-
-  let maxFlux=1e-9;
-  for(let f=0;f<numFrames;f++) if(flux[f]>maxFlux) maxFlux=flux[f];
-  for(let f=0;f<numFrames;f++) flux[f]/=maxFlux;
-
-  const hopSec=HOP/sr;
-  const winFrames=Math.max(2,Math.round(0.5/hopSec));
-  const onsetsRaw=[];
-  for(let f=2; f<numFrames-2; f++){
-    if(!(flux[f]>flux[f-1] && flux[f]>=flux[f+1])) continue;
-    const lo=Math.max(0,f-winFrames), hi=Math.min(numFrames-1,f+winFrames);
-    let sum=0;
-    for(let k=lo;k<=hi;k++) sum+=flux[k];
-    const localMean=sum/(hi-lo+1);
-    const threshold=localMean*1.4+0.02;
-    if(flux[f]>threshold){
-      const rhythmRatio = totalEnergyArr[f]>1e-6 ? lowEnergyArr[f]/totalEnergyArr[f] : 0;
-      onsetsRaw.push({
-        time:f*hopSec,
-        weight:flux[f]-localMean,
-        rhythmRatio,
-        flatness:flatnessArr[f],
-        lowPeakFreq:lowPeakFreqArr[f],
-        melodyPeakFreq:melodyPeakFreqArr[f],
-      });
-    }
-  }
-
-  const beatPeriod=numFrames>0?estimateTempo(flux, hopSec):0.5;
-  const SUBDIV=4; // 16th-note grid
-  const phase=numFrames>0?estimatePhase(flux, hopSec, beatPeriod, SUBDIV):0;
-
-  const step=beatPeriod/SUBDIV;
-  const gridMap=new Map();
-  for(const o of onsetsRaw){
-    const rel=o.time-phase;
-    const gi=Math.round(rel/step);
-    const gridTime=phase+gi*step;
-    if(Math.abs(o.time-gridTime) > step*0.55) continue;
-    const entry=gridMap.get(gi);
-    if(entry){
-      entry.weight+=o.weight;
-      entry.rhythmRatioSum+=o.rhythmRatio;
-      entry.flatnessSum+=o.flatness;
-      entry.lowPeakFreqSum+=o.lowPeakFreq;
-      entry.melodyPeakFreqSum+=o.melodyPeakFreq;
-      entry.count++;
-    } else {
-      gridMap.set(gi, {
-        time:gridTime, weight:o.weight,
-        rhythmRatioSum:o.rhythmRatio, flatnessSum:o.flatness,
-        lowPeakFreqSum:o.lowPeakFreq, melodyPeakFreqSum:o.melodyPeakFreq,
-        count:1,
-      });
-    }
-  }
-  const onsets=Array.from(gridMap.values())
-    .map(e=>({
-      time:e.time, weight:e.weight,
-      rhythmRatio:e.rhythmRatioSum/e.count,
-      flatness:e.flatnessSum/e.count,
-      lowPeakFreq:e.lowPeakFreqSum/e.count,
-      melodyPeakFreq:e.melodyPeakFreqSum/e.count,
-    }))
-    .sort((a,b)=>a.time-b.time);
-
-  function tileOf(sorted,p){
-    if(sorted.length===0) return 0;
-    const idx=Math.min(sorted.length-1,Math.floor(p*(sorted.length-1)));
-    return sorted[idx];
-  }
-  // Left lanes (0..2) = rhythm section (kick/snare/bass-driven onsets),
-  // right lanes (3..5) = melody section (vocal/guitar-driven onsets), with
-  // pitch height pushing melody notes further right.
-  // Classifying purely by low-frequency energy doesn't hold up on a mixed-down
-  // band recording: a snare or hi-hat is clearly "rhythm" but isn't bassy, so
-  // it was being misclassified as melody. Real audio engineering separates
-  // drums from melodic instruments mainly by percussiveness (a drum hit is
-  // broadband/noisy across the spectrum; a sung or plucked note concentrates
-  // energy at a few harmonic partials) rather than by pitch alone, so a
-  // spectral-flatness "how noisy/broadband is this onset" signal is blended
-  // in alongside the low-frequency ratio: bassy OR noisy -> rhythm section.
-  const RHYTHM_LANES=3;
-  const rhythmScoreOf=o=>Math.max(o.rhythmRatio, o.flatness);
-  const rhythmScores=onsets.map(rhythmScoreOf).sort((a,b)=>a-b);
-  const rhythmSplit=tileOf(rhythmScores,0.5);
-  const rhythmOnsets=onsets.filter(o=>rhythmScoreOf(o)>=rhythmSplit);
-  const melodyOnsets=onsets.filter(o=>rhythmScoreOf(o)<rhythmSplit);
-  // The low band only spans ~4-5 FFT bins below 200Hz, too coarse to split
-  // into 3 lanes by peak frequency (most onsets tie on the same bin) - a
-  // round-robin over time gives an even, natural-feeling alternation instead
-  // (both arrays are already time-sorted since they're filtered from `onsets`).
-  rhythmOnsets.forEach((o,idx)=>{ o.lane=idx%RHYTHM_LANES; });
-  const melodyFreqs=melodyOnsets.map(o=>o.melodyPeakFreq).sort((a,b)=>a-b);
-  const melodyBounds=[tileOf(melodyFreqs,1/RHYTHM_LANES), tileOf(melodyFreqs,2/RHYTHM_LANES)];
-  for(const o of melodyOnsets){
-    o.lane = o.melodyPeakFreq<=melodyBounds[0] ? 3 : o.melodyPeakFreq<=melodyBounds[1] ? 4 : 5;
-  }
-
-  const weights=onsets.map(o=>o.weight).slice().sort((a,b)=>a-b);
-  const criticalThreshold=tileOf(weights, CRITICAL_PERCENTILE);
-  for(const o of onsets) o.critical = o.weight>=criticalThreshold;
-
-  if(onProgress) onProgress(1);
-  return onsets;
-}
-
-function percentile(values,p){
-  if(values.length===0) return 0;
-  const s=values.slice().sort((a,b)=>a-b);
-  const idx=Math.min(s.length-1,Math.floor(p*(s.length-1)));
-  return s[idx];
-}
-const DIFF_PARAMS={
-  easy:  {pct:0.70, minGap:0.35, label:'かんたん'},
-  normal:{pct:0.45, minGap:0.20, label:'ふつう'},
-  hard:  {pct:0.0,  minGap:0.09, label:'むずかしい'},
-};
-function buildChartNotes(onsets, difficulty){
-  const params=DIFF_PARAMS[difficulty];
-  const weights=onsets.map(o=>o.weight);
-  const threshold=weights.length?percentile(weights,params.pct):0;
-  const notes=[];
-  let last=-Infinity;
-  for(const o of onsets){
-    if(o.weight>=threshold && (o.time-last)>=params.minGap){
-      notes.push({time:o.time, lane:o.lane, judged:false, result:null, critical:!!o.critical});
-      last=o.time;
-    }
-  }
-  return notes;
-}
+const DIFF_LABELS={easy:'かんたん', normal:'ふつう', hard:'むずかしい'};
 
 /* ================= App state ================= */
 let songs=[];
-let builtInSongs=[];
-let dbSongsCache=[];
 const screens={
   title:document.getElementById('screen-title'),
   play:document.getElementById('screen-play'),
@@ -597,123 +218,22 @@ function base64ToBytes(b64){
   for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
   return bytes;
 }
-function buildEmbeddedSongsList(){
-  const parts=[];
-  if(typeof EMBEDDED_SONGS!=='undefined') parts.push(...EMBEDDED_SONGS);
-  if(typeof EMBEDDED_SONGS_B!=='undefined') parts.push(...EMBEDDED_SONGS_B);
-  if(typeof EMBEDDED_SONGS_C!=='undefined') parts.push(...EMBEDDED_SONGS_C);
-  if(typeof EMBEDDED_SONGS_D!=='undefined') parts.push(...EMBEDDED_SONGS_D);
-  return parts.map((e,idx)=>({
-    id:'builtin-'+idx,
+// All songs and their charts are precomputed offline (see studio.html, the
+// PC-only authoring tool) and embedded directly here - no runtime audio
+// analysis happens in the shipped game, which is what made mobile playback
+// heavy in the previous version.
+function loadSongs(){
+  const source=(typeof PRECOMPUTED_SONGS!=='undefined') ? PRECOMPUTED_SONGS : [];
+  songs=source.map((e,idx)=>({
+    id:'song-'+idx,
     name:e.name,
-    duration:0,
-    onsets:[],
+    duration:e.duration,
+    difficulties:e.difficulties,
     blob:new Blob([base64ToBytes(e.data)],{type:e.mime}),
-    addedAt:0,
-    builtIn:true,
-    analyzed:false,
-    broken:false,
-    progress:0,
   }));
-}
-async function analyzeBuiltIns(){
-  for(const song of builtInSongs){
-    if(song.analyzed) continue;
-    await waitWhilePlaying();
-    try{
-      const arrBuf=await song.blob.arrayBuffer();
-      const audioBuffer=await getAudioCtx().decodeAudioData(arrBuf);
-      let lastRender=0;
-      song.onsets=await analyzeBuffer(audioBuffer, p=>{
-        song.progress=p;
-        const now=performance.now();
-        if(now-lastRender>150){ lastRender=now; renderSongList(); }
-      });
-      song.duration=audioBuffer.duration;
-      // audioBuffer is intentionally not cached here (see getAudioBuffer) -
-      // it's re-decoded lazily if/when the user actually plays this song.
-    }catch(err){
-      console.error('builtin analyze failed', song.name, err);
-      song.broken=true;
-    }
-    song.analyzed=true;
-    renderSongList();
-  }
-}
-
-function recombineSongs(){
-  songs=builtInSongs.concat(dbSongsCache);
   renderSongList();
 }
-async function loadDbSongs(){
-  dbSongsCache=await dbAll();
-  // Songs are only ever written to IndexedDB after analysis has fully
-  // completed, so any record loaded here is analyzed by definition. This
-  // also self-heals records saved before the `analyzed` flag existed,
-  // which would otherwise show "解析中..." forever and never be playable.
-  for(const song of dbSongsCache){
-    song.analyzed=true;
-    song.broken=false;
-  }
-  dbSongsCache.sort((a,b)=>b.addedAt-a.addedAt);
-  recombineSongs();
-}
-async function initSongs(){
-  builtInSongs=buildEmbeddedSongsList();
-  recombineSongs();
-  await loadDbSongs();
-  analyzeBuiltIns();
-}
 
-/* ---------- Chart export (time + lane per note, for manual tuning) ---------- */
-function buildExportDifficulties(song){
-  const diffs={};
-  for(const key of ['easy','normal','hard']){
-    diffs[key]=buildChartNotes(song.onsets,key).map(n=>({
-      time:Math.round(n.time*1000)/1000,
-      lane:n.lane,
-      critical:!!n.critical,
-    }));
-  }
-  return diffs;
-}
-function sanitizeFilename(name){
-  return name.replace(/[\\/:*?"<>|]/g,'_');
-}
-function downloadBlob(blob, filename){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 1000);
-}
-function exportChartJSON(song){
-  const payload={
-    song:song.name,
-    duration:Math.round(song.duration*1000)/1000,
-    laneCount:LANE_COUNT,
-    laneLayout:{rhythm:[0,1,2],melody:[3,4,5]},
-    generatedAt:new Date().toISOString(),
-    difficulties:buildExportDifficulties(song),
-  };
-  const blob=new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-  downloadBlob(blob, sanitizeFilename(song.name)+'_chart.json');
-}
-function exportChartCSV(song){
-  const diffs=buildExportDifficulties(song);
-  const rows=['difficulty,time_sec,lane,section,critical'];
-  for(const key of ['easy','normal','hard']){
-    for(const n of diffs[key]){
-      const section=n.lane<=2?'rhythm':'melody';
-      rows.push(key+','+n.time+','+n.lane+','+section+','+(n.critical?1:0));
-    }
-  }
-  const blob=new Blob([rows.join('\n')], {type:'text/csv'});
-  downloadBlob(blob, sanitizeFilename(song.name)+'_chart.csv');
-}
 
 function renderSongList(){
   const el=document.getElementById('songList');
@@ -721,7 +241,7 @@ function renderSongList(){
   if(songs.length===0){
     const p=document.createElement('div');
     p.className='empty-hint';
-    p.textContent='まだ音源がありません。上のボタンから追加してください。';
+    p.textContent='曲がありません。';
     el.appendChild(p);
     return;
   }
@@ -733,132 +253,30 @@ function renderSongList(){
     top.className='song-top';
     const name=document.createElement('div');
     name.className='song-name';
-    if(song.builtIn){
-      const badge=document.createElement('span');
-      badge.className='badge';
-      badge.textContent='内蔵';
-      name.appendChild(badge);
-      name.appendChild(document.createTextNode(' '+song.name));
-    } else {
-      name.textContent=song.name;
-    }
+    name.textContent=song.name;
     top.appendChild(name);
-    if(!song.builtIn){
-      const del=document.createElement('button');
-      del.className='del-btn';
-      del.textContent='✕';
-      del.title='削除';
-      del.addEventListener('click', async ()=>{
-        if(confirm('「'+song.name+'」を削除しますか？')){
-          await dbDelete(song.id);
-          bufferCache.delete(song.id);
-          await loadDbSongs();
-        }
-      });
-      top.appendChild(del);
-    }
 
     const meta=document.createElement('div');
     meta.className='song-meta';
-    card.appendChild(top);
-    card.appendChild(meta);
-
-    if(!song.analyzed){
-      const pct=song.progress ? Math.round(song.progress*100) : 0;
-      meta.textContent='解析中… '+pct+'%';
-      el.appendChild(card);
-      continue;
-    }
-    if(song.broken){
-      meta.textContent='読み込みエラー';
-      el.appendChild(card);
-      continue;
-    }
-    meta.textContent=formatTime(song.duration)+' ・ ノーツ候補 '+song.onsets.length+'個';
+    meta.textContent=formatTime(song.duration)+' ・ ノーツ '+song.difficulties.normal.length+'個(ふつう)';
 
     const diffRow=document.createElement('div');
     diffRow.className='diff-row';
     for(const key of ['easy','normal','hard']){
-      const n=buildChartNotes(song.onsets,key).length;
+      const n=song.difficulties[key].length;
       const btn=document.createElement('button');
       btn.className='diff-btn diff-'+key;
-      btn.innerHTML=DIFF_PARAMS[key].label+'<small>'+n+' notes</small>';
+      btn.innerHTML=DIFF_LABELS[key]+'<small>'+n+' notes</small>';
       btn.addEventListener('click', ()=>startPlay(song,key));
       diffRow.appendChild(btn);
     }
+
+    card.appendChild(top);
+    card.appendChild(meta);
     card.appendChild(diffRow);
-
-    const exportRow=document.createElement('div');
-    exportRow.className='export-row';
-    const csvBtn=document.createElement('button');
-    csvBtn.className='export-btn';
-    csvBtn.textContent='⤓ CSVで書き出し';
-    csvBtn.addEventListener('click', ()=>exportChartCSV(song));
-    const jsonBtn=document.createElement('button');
-    jsonBtn.className='export-btn';
-    jsonBtn.textContent='⤓ JSONで書き出し';
-    jsonBtn.addEventListener('click', ()=>exportChartJSON(song));
-    exportRow.appendChild(csvBtn);
-    exportRow.appendChild(jsonBtn);
-    card.appendChild(exportRow);
-
     el.appendChild(card);
   }
 }
-
-/* ================= Add song flow ================= */
-const AUDIO_EXT_RE=/\.(m4a|mp3|wav|aac|ogg|flac|caf|aif|aiff)$/i;
-function isAudioFile(file){
-  return (file.type && file.type.startsWith('audio')) || AUDIO_EXT_RE.test(file.name);
-}
-async function handleFiles(fileList){
-  const files=Array.from(fileList).filter(isAudioFile);
-  if(files.length===0) return;
-  const progressEl=document.getElementById('addProgress');
-  for(const file of files){
-    progressEl.textContent='解析中: '+file.name+' …';
-    try{
-      const arrBuf=await file.arrayBuffer();
-      const audioBuffer=await getAudioCtx().decodeAudioData(arrBuf);
-      const onsets=await analyzeBuffer(audioBuffer, p=>{
-        progressEl.textContent='解析中: '+file.name+' … '+Math.round(p*100)+'%';
-      });
-      const rec={
-        id:uuid(),
-        name:file.name.replace(/\.[^/.]+$/,''),
-        duration:audioBuffer.duration,
-        onsets,
-        blob:file,
-        addedAt:Date.now(),
-        analyzed:true,
-        broken:false,
-      };
-      await dbPut(rec);
-      dbSongsCache.unshift(rec);
-      recombineSongs();
-    }catch(err){
-      console.error(err);
-      alert('読み込みに失敗しました: '+file.name);
-    }
-  }
-  progressEl.textContent='';
-}
-
-document.getElementById('addBtn').addEventListener('click', ()=>document.getElementById('fileInput').click());
-document.getElementById('fileInput').addEventListener('change', e=>{
-  handleFiles(e.target.files);
-  e.target.value='';
-});
-const dropzone=document.getElementById('dropzone');
-['dragenter','dragover'].forEach(ev=>dropzone.addEventListener(ev,e=>{
-  e.preventDefault(); dropzone.classList.add('dragover');
-}));
-['dragleave','drop'].forEach(ev=>dropzone.addEventListener(ev,e=>{
-  e.preventDefault(); dropzone.classList.remove('dragover');
-}));
-dropzone.addEventListener('drop', e=>{
-  if(e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
-});
 
 /* ================= Gameplay ================= */
 const LEAD_TIME=1.6;      // seconds a note takes to fall from top to hit line
@@ -869,7 +287,6 @@ const PERFECT_WINDOW=0.04;
 const GREAT_WINDOW=0.08;
 const GOOD_WINDOW=0.12;
 const BAD_WINDOW=0.18;
-const CRITICAL_PERCENTILE=0.88; // top ~12% of onset weight becomes a gold "Critical" note
 const LANE_COLORS=['#ff4d6d','#ff9f4d','#ffd23f','#5ce18a','#3fd6ff','#7c4dff'];
 const LANE_KEYS=['s','d','f','j','k','l'];
 const JUDGE_COLORS={perfect:'#ffd23f',great:'#3fd6ff',good:'#5ce18a',bad:'#b0b0c8',miss:'#ff5566'};
@@ -904,7 +321,9 @@ function hexToRgba(hex, alpha){
 let game=null; // active game session state
 
 function computeChart(song, difficulty){
-  const notes=buildChartNotes(song.onsets, difficulty).sort((a,b)=>a.time-b.time);
+  const notes=song.difficulties[difficulty]
+    .map(n=>({time:n.time, lane:n.lane, critical:!!n.critical, judged:false, result:null}))
+    .sort((a,b)=>a.time-b.time);
   const notesByLane=Array.from({length:LANE_COUNT},()=>[]);
   for(const n of notes) notesByLane[n.lane].push(n);
   return {notes, notesByLane};
@@ -957,7 +376,7 @@ async function startPlay(song, difficulty){
 
   source.start(startTime);
 
-  document.getElementById('songNameHud').textContent=song.name+' / '+DIFF_PARAMS[difficulty].label;
+  document.getElementById('songNameHud').textContent=song.name+' / '+DIFF_LABELS[difficulty];
   document.getElementById('scoreDisplay').textContent='0';
   document.getElementById('comboDisplay').style.display='none';
   document.getElementById('lifeGaugeFill').style.width='80%';
@@ -1392,7 +811,7 @@ for(const el of [document.getElementById('volumeSliderTitle'), document.getEleme
   el.addEventListener('input', e=>setVolumeLevel(Number(e.target.value)));
 }
 setVolumeLevel(getVolumeLevel());
-initSongs();
+loadSongs();
 </script>
 </body>
 </html>

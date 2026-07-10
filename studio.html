@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>リズムビート・スタジオ【開発者ツール】</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a14;overscroll-behavior:none;font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;color:#eef0ff;}
+body{position:fixed;top:0;left:0;right:0;bottom:0;}
+#app{width:100%;height:100%;position:relative;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;}
+.screen.active{display:flex;}
+
+/* ---------- Title / song select ---------- */
+#screen-title{overflow-y:auto;padding:24px 18px 40px;}
+#screen-title h1{font-size:26px;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#3fd6ff,#7c4dff);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:1px;}
+#screen-title .subtitle{color:#9aa0c0;font-size:13px;margin-top:6px;margin-bottom:20px;}
+#dropzone{border:2px dashed #3a3a5a;border-radius:14px;padding:20px;text-align:center;transition:border-color .15s,background .15s;}
+#dropzone.dragover{border-color:#7c4dff;background:rgba(124,77,255,.12);}
+#addBtn{background:linear-gradient(90deg,#7c4dff,#3fd6ff);color:#0a0a14;border:none;border-radius:999px;padding:12px 26px;font-size:15px;font-weight:700;cursor:pointer;}
+#addBtn:active{transform:scale(.97);}
+.volume-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.volume-label{font-size:13px;color:#c6caee;white-space:nowrap;}
+.volume-value{font-size:13px;color:#9aa0c0;min-width:2.2em;text-align:right;}
+.volume-slider{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;background:#23234a;outline:none;}
+.volume-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:linear-gradient(90deg,#7c4dff,#3fd6ff);cursor:pointer;border:2px solid #eef0ff;}
+.volume-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:linear-gradient(90deg,#7c4dff,#3fd6ff);cursor:pointer;border:2px solid #eef0ff;}
+#pauseOverlay .volume-row{width:70%;max-width:280px;margin-bottom:4px;}
+#dropzone .hint{margin-top:10px;font-size:12px;color:#7a80a5;}
+#addProgress{margin-top:12px;font-size:13px;color:#3fd6ff;min-height:18px;}
+#songList{margin-top:22px;display:flex;flex-direction:column;gap:12px;}
+.empty-hint{color:#6a6f90;font-size:13px;text-align:center;padding:30px 10px;}
+.song-card{background:#141428;border:1px solid #23234a;border-radius:14px;padding:14px 16px;}
+.song-card .song-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.song-card .song-name{font-size:15px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.song-card .badge{display:inline-block;background:#7c4dff;color:#fff;font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px;margin-right:2px;vertical-align:middle;}
+.song-card .song-meta{font-size:11px;color:#8288ad;margin-top:2px;}
+.song-card .del-btn{background:none;border:none;color:#5a5f80;font-size:18px;padding:4px 8px;cursor:pointer;}
+.diff-row{display:flex;gap:8px;margin-top:10px;}
+.diff-btn{flex:1;border:none;border-radius:10px;padding:10px 4px;font-size:12px;font-weight:700;cursor:pointer;color:#0a0a14;}
+.diff-btn small{display:block;font-weight:400;font-size:10px;opacity:.75;margin-top:2px;}
+.diff-easy{background:#5ce18a;}
+.diff-normal{background:#ffd23f;}
+.diff-hard{background:#ff5566;color:#fff;}
+.export-row{display:flex;gap:8px;margin-top:8px;}
+.export-btn{flex:1;background:none;border:1px solid #2c2c54;border-radius:8px;padding:6px 4px;font-size:11px;color:#9aa0c0;cursor:pointer;}
+.export-btn:active{background:rgba(255,255,255,.06);}
+
+/* ---------- Play screen ---------- */
+#screen-play{background:#05050c;}
+#gameCanvas{width:100%;height:100%;display:block;touch-action:none;}
+#hud{position:absolute;top:8px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px 14px;pointer-events:none;}
+#scoreDisplay{font-size:22px;font-weight:800;letter-spacing:1px;text-shadow:0 0 8px rgba(124,77,255,.6);}
+#songNameHud{font-size:12px;color:#9aa0c0;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#comboWrap{position:absolute;top:14%;left:0;right:0;text-align:center;pointer-events:none;}
+#comboDisplay{font-size:34px;font-weight:900;color:#ffd23f;text-shadow:0 0 12px rgba(255,210,63,.7);display:none;}
+#comboDisplay .combo-label{display:block;font-size:12px;color:#eef0ff;font-weight:400;letter-spacing:2px;}
+@keyframes comboPop{0%{transform:scale(1.5);}100%{transform:scale(1);}}
+#comboDisplay.pop{animation:comboPop 180ms cubic-bezier(.2,1.4,.4,1);}
+@keyframes rankPop{0%{transform:scale(.4);opacity:0;}70%{transform:scale(1.15);opacity:1;}100%{transform:scale(1);}}
+#rankBig.pop{animation:rankPop 420ms cubic-bezier(.2,1.4,.4,1);}
+#judgeDisplay{position:absolute;bottom:34%;left:0;right:0;text-align:center;font-size:22px;font-weight:800;pointer-events:none;opacity:0;letter-spacing:2px;}
+#pauseBtn{position:absolute;top:10px;right:14px;background:rgba(255,255,255,.08);border:none;color:#eef0ff;font-size:16px;border-radius:999px;width:36px;height:36px;z-index:5;}
+#lifeGaugeWrap{position:absolute;top:0;left:0;right:0;height:5px;background:rgba(255,255,255,.08);z-index:6;}
+#lifeGaugeFill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#5ce18a,#3fd6ff,#7c4dff);transition:width .25s ease-out;}
+#touchZones{position:absolute;left:0;right:0;bottom:0;top:0;display:flex;z-index:3;}
+.tzone{flex:1;border-left:1px solid rgba(255,255,255,.03);display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(6% + env(safe-area-inset-bottom));transition:background .08s;}
+.tzone:first-child{border-left:none;}
+.tzone .keycap{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#0a0a14;opacity:.9;pointer-events:none;}
+.tzone.active{background:rgba(255,255,255,.06);}
+#pauseOverlay{position:absolute;inset:0;background:rgba(5,5,12,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:10;}
+#pauseOverlay.hidden{display:none;}
+#pauseOverlay button{padding:12px 34px;border-radius:999px;border:none;font-size:15px;font-weight:700;cursor:pointer;}
+#resumeBtn{background:#3fd6ff;color:#0a0a14;}
+#quitBtn{background:#23234a;color:#eef0ff;}
+
+/* ---------- Result screen ---------- */
+#screen-result{align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;}
+#screen-result h2{font-size:20px;color:#9aa0c0;letter-spacing:3px;}
+#rankBig{font-size:64px;font-weight:900;text-shadow:0 0 20px rgba(124,77,255,.6);}
+#resultBody{background:#141428;border:1px solid #23234a;border-radius:16px;padding:20px 28px;min-width:240px;}
+#resultBody .row{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;color:#c6caee;}
+#resultBody .row b{color:#eef0ff;}
+.result-btns{display:flex;gap:12px;}
+.result-btns button{padding:12px 24px;border-radius:999px;border:none;font-size:14px;font-weight:700;cursor:pointer;}
+#retryBtn{background:linear-gradient(90deg,#7c4dff,#3fd6ff);color:#0a0a14;}
+#backBtn{background:#23234a;color:#eef0ff;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="screen-title" class="screen active">
+    <h1>リズムビート・スタジオ</h1>
+    <p class="subtitle">【開発者ツール】音源の追加・解析・譜面の書き出し専用。スマホ版のゲーム本体はここでは配信していません。</p>
+    <div id="volumeRow" class="volume-row">
+      <span class="volume-label">🔊 音量</span>
+      <input type="range" class="volume-slider" id="volumeSliderTitle" min="1" max="10" step="1">
+      <span class="volume-value" id="volumeValueTitle">10</span>
+    </div>
+    <div id="dropzone">
+      <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac" multiple hidden>
+      <button id="addBtn">＋ 音源を追加</button>
+      <p class="hint">またはここに音声ファイルをドラッグ＆ドロップ（一度追加した曲は次回も使えます）</p>
+      <div id="addProgress"></div>
+    </div>
+    <div id="songList"></div>
+  </div>
+
+  <div id="screen-play" class="screen">
+    <canvas id="gameCanvas"></canvas>
+    <div id="hud">
+      <div>
+        <div id="scoreDisplay">0</div>
+        <div id="songNameHud"></div>
+      </div>
+    </div>
+    <div id="comboWrap"><div id="comboDisplay"><span id="comboNum">0</span><span class="combo-label">COMBO</span></div></div>
+    <div id="judgeDisplay"></div>
+    <button id="pauseBtn">⏸</button>
+    <div id="lifeGaugeWrap"><div id="lifeGaugeFill"></div></div>
+    <div id="touchZones">
+      <div class="tzone" data-lane="0"><div class="keycap">S</div></div>
+      <div class="tzone" data-lane="1"><div class="keycap">D</div></div>
+      <div class="tzone" data-lane="2"><div class="keycap">F</div></div>
+      <div class="tzone" data-lane="3"><div class="keycap">J</div></div>
+      <div class="tzone" data-lane="4"><div class="keycap">K</div></div>
+      <div class="tzone" data-lane="5"><div class="keycap">L</div></div>
+    </div>
+    <div id="pauseOverlay" class="hidden">
+      <h2 style="font-size:18px;letter-spacing:4px;color:#9aa0c0;">PAUSE</h2>
+      <div class="volume-row">
+        <span class="volume-label">🔊 音量</span>
+        <input type="range" class="volume-slider" id="volumeSliderPause" min="1" max="10" step="1">
+        <span class="volume-value" id="volumeValuePause">10</span>
+      </div>
+      <button id="resumeBtn">再開する</button>
+      <button id="quitBtn">曲選択に戻る</button>
+    </div>
+  </div>
+
+  <div id="screen-result" class="screen">
+    <h2>RESULT</h2>
+    <div id="rankBig">-</div>
+    <div id="resultBody"></div>
+    <div class="result-btns">
+      <button id="retryBtn">もう一度</button>
+      <button id="backBtn">曲選択へ</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="songs-data.js"></script>
+<script src="songs-data-b.js"></script>
+<script src="songs-data-c.js"></script>
+<script src="songs-data-d.js"></script>
+<script>
+'use strict';
+
+/* ================= IndexedDB ================= */
+const DB_NAME='rhythmGameDB', DB_VERSION=1, STORE='songs';
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id'});
+    };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function dbAll(){
+  const db=await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readonly');
+    const req=tx.objectStore(STORE).getAll();
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function dbPut(record){
+  const db=await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite');
+    tx.objectStore(STORE).put(record);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+async function dbDelete(id){
+  const db=await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+
+function uuid(){
+  return (crypto.randomUUID) ? crypto.randomUUID() : ('id-'+Date.now()+'-'+Math.random().toString(16).slice(2));
+}
+function formatTime(sec){
+  if(!isFinite(sec)) return '--:--';
+  const m=Math.floor(sec/60), s=Math.floor(sec%60);
+  return m+':'+String(s).padStart(2,'0');
+}
+
+/* ================= Audio context / decode cache ================= */
+let audioCtx=null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+let masterGain=null;
+function getMasterGain(){
+  if(!masterGain){
+    masterGain=getAudioCtx().createGain();
+    masterGain.gain.value=getVolumeLevel()/10;
+    masterGain.connect(getAudioCtx().destination);
+  }
+  return masterGain;
+}
+
+/* ---------- Volume (10 steps) ---------- */
+const VOLUME_KEY='rhythmGameVolume';
+function getVolumeLevel(){
+  const saved=Number(localStorage.getItem(VOLUME_KEY));
+  return (saved>=1 && saved<=10) ? saved : 10;
+}
+function setVolumeLevel(level){
+  level=Math.max(1,Math.min(10,Math.round(level)));
+  localStorage.setItem(VOLUME_KEY, String(level));
+  if(masterGain){
+    masterGain.gain.setTargetAtTime(level/10, getAudioCtx().currentTime, 0.01);
+  }
+  for(const el of [document.getElementById('volumeSliderTitle'), document.getElementById('volumeSliderPause')]){
+    if(el) el.value=String(level);
+  }
+  for(const el of [document.getElementById('volumeValueTitle'), document.getElementById('volumeValuePause')]){
+    if(el) el.textContent=String(level);
+  }
+}
+// Holds at most one decoded AudioBuffer at a time. With 15 built-in tracks
+// (one over an hour long), keeping every decode in memory simultaneously
+// would use several GB of RAM and reliably crash mobile browsers.
+const bufferCache=new Map();
+async function getAudioBuffer(song){
+  if(bufferCache.has(song.id)) return bufferCache.get(song.id);
+  bufferCache.clear();
+  const arrBuf=await song.blob.arrayBuffer();
+  const buf=await getAudioCtx().decodeAudioData(arrBuf);
+  bufferCache.set(song.id,buf);
+  return buf;
+}
+
+/* ================= Onset detection / auto chart =================
+   Spectral-flux onset detection (real FFT per frame) + autocorrelation
+   tempo tracking, then every onset is snapped onto a 16th-note grid
+   locked to the song's own beat so falling notes stay in time with
+   the music instead of drifting on raw broadband energy noise. */
+function fftInPlace(re, im){
+  const n=re.length;
+  for(let i=1,j=0; i<n; i++){
+    let bit=n>>1;
+    for(; j&bit; bit>>=1) j^=bit;
+    j^=bit;
+    if(i<j){ let tr=re[i]; re[i]=re[j]; re[j]=tr; let ti=im[i]; im[i]=im[j]; im[j]=ti; }
+  }
+  for(let len=2; len<=n; len<<=1){
+    const ang=-2*Math.PI/len;
+    const wr=Math.cos(ang), wi=Math.sin(ang);
+    for(let i=0;i<n;i+=len){
+      let curR=1, curI=0;
+      for(let k=0;k<len/2;k++){
+        const uR=re[i+k], uI=im[i+k];
+        const vR=re[i+k+len/2]*curR - im[i+k+len/2]*curI;
+        const vI=re[i+k+len/2]*curI + im[i+k+len/2]*curR;
+        re[i+k]=uR+vR; im[i+k]=uI+vI;
+        re[i+k+len/2]=uR-vR; im[i+k+len/2]=uI-vI;
+        const nextR=curR*wr-curI*wi;
+        const nextI=curR*wi+curI*wr;
+        curR=nextR; curI=nextI;
+      }
+    }
+  }
+}
+function hannWindow(n){
+  const w=new Float32Array(n);
+  for(let i=0;i<n;i++) w[i]=0.5-0.5*Math.cos(2*Math.PI*i/(n-1));
+  return w;
+}
+function estimateTempo(flux, hopSec){
+  const minBPM=70, maxBPM=190;
+  const minLag=Math.max(1,Math.round((60/maxBPM)/hopSec));
+  const maxLag=Math.round((60/minBPM)/hopSec);
+  if(maxLag>=flux.length) return 0.5;
+  let bestLag=minLag, bestScore=-Infinity;
+  for(let lag=minLag; lag<=maxLag; lag++){
+    let score=0, count=0;
+    for(let i=0;i+lag<flux.length;i++){ score+=flux[i]*flux[i+lag]; count++; }
+    if(count>0) score/=count;
+    if(score>bestScore){ bestScore=score; bestLag=lag; }
+  }
+  return bestLag*hopSec;
+}
+function estimatePhase(flux, hopSec, beatPeriod, subdiv){
+  const step=beatPeriod/subdiv;
+  const numFrames=flux.length;
+  const totalTime=numFrames*hopSec;
+  let bestPhase=0, bestScore=-Infinity;
+  const trials=60;
+  for(let t=0;t<trials;t++){
+    const phase=(t/trials)*beatPeriod;
+    let score=0;
+    for(let time=phase; time<totalTime; time+=step){
+      const idx=Math.round(time/hopSec);
+      if(idx>=0 && idx<numFrames) score+=flux[idx];
+    }
+    if(score>bestScore){ bestScore=score; bestPhase=phase; }
+  }
+  return bestPhase;
+}
+function yieldToBrowser(){
+  return new Promise(resolve=>setTimeout(resolve,0));
+}
+// Background song analysis (FFT chunks) competes with the game loop for the
+// main thread. On a phone's weaker CPU this was enough to make gameplay
+// stutter or appear to freeze, since all built-in songs keep analyzing in
+// the background even while a song is being played. Pause entirely while
+// the play screen is active, and resume once back at the title/result screen.
+async function waitWhilePlaying(){
+  while(screens.play.classList.contains('active')){
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+}
+async function analyzeBuffer(audioBuffer, onProgress){
+  const sr=audioBuffer.sampleRate;
+  const ch0=audioBuffer.getChannelData(0);
+  const ch1=audioBuffer.numberOfChannels>1?audioBuffer.getChannelData(1):null;
+  const len=ch0.length;
+  let mono;
+  if(ch1){
+    mono=new Float32Array(len);
+    const MIX_CHUNK=2_000_000;
+    for(let i=0;i<len;i++){
+      mono[i]=(ch0[i]+ch1[i])*0.5;
+      if(i>0 && i%MIX_CHUNK===0){
+        await yieldToBrowser();
+        await waitWhilePlaying();
+      }
+    }
+  } else {
+    mono=ch0;
+  }
+
+  const FFT_SIZE=1024, HOP=512;
+  const numFrames=Math.max(0,Math.floor((len-FFT_SIZE)/HOP));
+  const win=hannWindow(FFT_SIZE);
+  const half=FFT_SIZE/2;
+  const prevMag=new Float32Array(half);
+  const flux=new Float32Array(numFrames);
+  const reBuf=new Float32Array(FFT_SIZE);
+  const imBuf=new Float32Array(FFT_SIZE);
+  const binFreq=new Float32Array(half);
+  for(let k=0;k<half;k++) binFreq[k]=k*sr/FFT_SIZE;
+
+  // Rhythm/melody band split, mirroring a "left = drums/bass, right = lead
+  // melody" lane layout: low frequencies (kick/bass) drive the rhythm side,
+  // mid/high frequencies (vocal/guitar) drive the melody side, and the
+  // dominant frequency within each band acts as a rough pitch proxy for
+  // choosing the sub-lane (higher pitch -> further right).
+  const LOW_BAND_MAX_HZ=200;
+  const MELODY_MIN_HZ=200, MELODY_MAX_HZ=5000;
+  // Spectral flatness is only meaningful over a musically "populated" band -
+  // computed across the full spectrum up to Nyquist, the geometric mean gets
+  // crushed to near-zero by the mostly-silent upper spectrum regardless of
+  // percussiveness, making flatness useless for classification.
+  const FLATNESS_MIN_HZ=100, FLATNESS_MAX_HZ=8000;
+  const totalEnergyArr=new Float32Array(numFrames);
+  const lowEnergyArr=new Float32Array(numFrames);
+  const lowPeakFreqArr=new Float32Array(numFrames);
+  const melodyPeakFreqArr=new Float32Array(numFrames);
+  const flatnessArr=new Float32Array(numFrames);
+  let flatnessBinCount=0;
+  for(let k=1;k<half;k++) if(binFreq[k]>=FLATNESS_MIN_HZ && binFreq[k]<=FLATNESS_MAX_HZ) flatnessBinCount++;
+
+  // Heaviest step (an FFT per frame): processed in chunks and yielded back to
+  // the browser between them so long recordings don't freeze the tab and the
+  // song list can show live progress instead of looking stuck.
+  const CHUNK=500;
+  for(let f=0; f<numFrames; f++){
+    const start=f*HOP;
+    for(let i=0;i<FFT_SIZE;i++){ reBuf[i]=mono[start+i]*win[i]; imBuf[i]=0; }
+    fftInPlace(reBuf, imBuf);
+    let fluxSum=0, energySum=0, lowEnergy=0;
+    let flatEnergySum=0, flatLogSum=0;
+    let lowPeakMag=0, lowPeakFreq=0, melodyPeakMag=0, melodyPeakFreq=0;
+    for(let k=1;k<half;k++){
+      const mag=Math.sqrt(reBuf[k]*reBuf[k]+imBuf[k]*imBuf[k]);
+      const logMag=Math.log1p(mag);
+      const diff=logMag-prevMag[k];
+      if(diff>0) fluxSum+=diff;
+      energySum+=mag;
+      prevMag[k]=logMag;
+      const f_hz=binFreq[k];
+      if(f_hz<LOW_BAND_MAX_HZ){
+        lowEnergy+=mag;
+        if(mag>lowPeakMag){ lowPeakMag=mag; lowPeakFreq=f_hz; }
+      } else if(f_hz>=MELODY_MIN_HZ && f_hz<=MELODY_MAX_HZ){
+        if(mag>melodyPeakMag){ melodyPeakMag=mag; melodyPeakFreq=f_hz; }
+      }
+      if(f_hz>=FLATNESS_MIN_HZ && f_hz<=FLATNESS_MAX_HZ){
+        flatEnergySum+=mag;
+        flatLogSum+=Math.log(mag+1e-8);
+      }
+    }
+    flux[f]=fluxSum;
+    totalEnergyArr[f]=energySum;
+    lowEnergyArr[f]=lowEnergy;
+    lowPeakFreqArr[f]=lowPeakFreq;
+    melodyPeakFreqArr[f]=melodyPeakFreq;
+    // Spectral flatness (geometric mean / arithmetic mean of the magnitude
+    // spectrum) over the populated band: near 1 for broadband/noisy content
+    // (drum hits - percussive regardless of pitch), near 0 for tonal content
+    // concentrated at a few harmonic partials (a sung note or a guitar/bass
+    // pitch).
+    const arithMean=flatEnergySum/flatnessBinCount;
+    const geoMean=Math.exp(flatLogSum/flatnessBinCount);
+    flatnessArr[f]= arithMean>1e-8 ? Math.min(1, geoMean/arithMean) : 0;
+
+    if(f>0 && f%CHUNK===0){
+      if(onProgress) onProgress(f/numFrames*0.95);
+      await yieldToBrowser();
+      await waitWhilePlaying();
+    }
+  }
+  if(onProgress) onProgress(0.95);
+
+  let maxFlux=1e-9;
+  for(let f=0;f<numFrames;f++) if(flux[f]>maxFlux) maxFlux=flux[f];
+  for(let f=0;f<numFrames;f++) flux[f]/=maxFlux;
+
+  const hopSec=HOP/sr;
+  const winFrames=Math.max(2,Math.round(0.5/hopSec));
+  const onsetsRaw=[];
+  for(let f=2; f<numFrames-2; f++){
+    if(!(flux[f]>flux[f-1] && flux[f]>=flux[f+1])) continue;
+    const lo=Math.max(0,f-winFrames), hi=Math.min(numFrames-1,f+winFrames);
+    let sum=0;
+    for(let k=lo;k<=hi;k++) sum+=flux[k];
+    const localMean=sum/(hi-lo+1);
+    const threshold=localMean*1.4+0.02;
+    if(flux[f]>threshold){
+      const rhythmRatio = totalEnergyArr[f]>1e-6 ? lowEnergyArr[f]/totalEnergyArr[f] : 0;
+      onsetsRaw.push({
+        time:f*hopSec,
+        weight:flux[f]-localMean,
+        rhythmRatio,
+        flatness:flatnessArr[f],
+        lowPeakFreq:lowPeakFreqArr[f],
+        melodyPeakFreq:melodyPeakFreqArr[f],
+      });
+    }
+  }
+
+  const beatPeriod=numFrames>0?estimateTempo(flux, hopSec):0.5;
+  const SUBDIV=4; // 16th-note grid
+  const phase=numFrames>0?estimatePhase(flux, hopSec, beatPeriod, SUBDIV):0;
+
+  const step=beatPeriod/SUBDIV;
+  const gridMap=new Map();
+  for(const o of onsetsRaw){
+    const rel=o.time-phase;
+    const gi=Math.round(rel/step);
+    const gridTime=phase+gi*step;
+    if(Math.abs(o.time-gridTime) > step*0.55) continue;
+    const entry=gridMap.get(gi);
+    if(entry){
+      entry.weight+=o.weight;
+      entry.rhythmRatioSum+=o.rhythmRatio;
+      entry.flatnessSum+=o.flatness;
+      entry.lowPeakFreqSum+=o.lowPeakFreq;
+      entry.melodyPeakFreqSum+=o.melodyPeakFreq;
+      entry.count++;
+    } else {
+      gridMap.set(gi, {
+        time:gridTime, weight:o.weight,
+        rhythmRatioSum:o.rhythmRatio, flatnessSum:o.flatness,
+        lowPeakFreqSum:o.lowPeakFreq, melodyPeakFreqSum:o.melodyPeakFreq,
+        count:1,
+      });
+    }
+  }
+  const onsets=Array.from(gridMap.values())
+    .map(e=>({
+      time:e.time, weight:e.weight,
+      rhythmRatio:e.rhythmRatioSum/e.count,
+      flatness:e.flatnessSum/e.count,
+      lowPeakFreq:e.lowPeakFreqSum/e.count,
+      melodyPeakFreq:e.melodyPeakFreqSum/e.count,
+    }))
+    .sort((a,b)=>a.time-b.time);
+
+  function tileOf(sorted,p){
+    if(sorted.length===0) return 0;
+    const idx=Math.min(sorted.length-1,Math.floor(p*(sorted.length-1)));
+    return sorted[idx];
+  }
+  // Left lanes (0..2) = rhythm section (kick/snare/bass-driven onsets),
+  // right lanes (3..5) = melody section (vocal/guitar-driven onsets), with
+  // pitch height pushing melody notes further right.
+  // Classifying purely by low-frequency energy doesn't hold up on a mixed-down
+  // band recording: a snare or hi-hat is clearly "rhythm" but isn't bassy, so
+  // it was being misclassified as melody. Real audio engineering separates
+  // drums from melodic instruments mainly by percussiveness (a drum hit is
+  // broadband/noisy across the spectrum; a sung or plucked note concentrates
+  // energy at a few harmonic partials) rather than by pitch alone, so a
+  // spectral-flatness "how noisy/broadband is this onset" signal is blended
+  // in alongside the low-frequency ratio: bassy OR noisy -> rhythm section.
+  const RHYTHM_LANES=3;
+  const rhythmScoreOf=o=>Math.max(o.rhythmRatio, o.flatness);
+  const rhythmScores=onsets.map(rhythmScoreOf).sort((a,b)=>a-b);
+  const rhythmSplit=tileOf(rhythmScores,0.5);
+  const rhythmOnsets=onsets.filter(o=>rhythmScoreOf(o)>=rhythmSplit);
+  const melodyOnsets=onsets.filter(o=>rhythmScoreOf(o)<rhythmSplit);
+  // The low band only spans ~4-5 FFT bins below 200Hz, too coarse to split
+  // into 3 lanes by peak frequency (most onsets tie on the same bin) - a
+  // round-robin over time gives an even, natural-feeling alternation instead
+  // (both arrays are already time-sorted since they're filtered from `onsets`).
+  rhythmOnsets.forEach((o,idx)=>{ o.lane=idx%RHYTHM_LANES; });
+  const melodyFreqs=melodyOnsets.map(o=>o.melodyPeakFreq).sort((a,b)=>a-b);
+  const melodyBounds=[tileOf(melodyFreqs,1/RHYTHM_LANES), tileOf(melodyFreqs,2/RHYTHM_LANES)];
+  for(const o of melodyOnsets){
+    o.lane = o.melodyPeakFreq<=melodyBounds[0] ? 3 : o.melodyPeakFreq<=melodyBounds[1] ? 4 : 5;
+  }
+
+  const weights=onsets.map(o=>o.weight).slice().sort((a,b)=>a-b);
+  const criticalThreshold=tileOf(weights, CRITICAL_PERCENTILE);
+  for(const o of onsets) o.critical = o.weight>=criticalThreshold;
+
+  if(onProgress) onProgress(1);
+  return onsets;
+}
+
+function percentile(values,p){
+  if(values.length===0) return 0;
+  const s=values.slice().sort((a,b)=>a-b);
+  const idx=Math.min(s.length-1,Math.floor(p*(s.length-1)));
+  return s[idx];
+}
+const DIFF_PARAMS={
+  easy:  {pct:0.70, minGap:0.35, label:'かんたん'},
+  normal:{pct:0.45, minGap:0.20, label:'ふつう'},
+  hard:  {pct:0.0,  minGap:0.09, label:'むずかしい'},
+};
+function buildChartNotes(onsets, difficulty){
+  const params=DIFF_PARAMS[difficulty];
+  const weights=onsets.map(o=>o.weight);
+  const threshold=weights.length?percentile(weights,params.pct):0;
+  const notes=[];
+  let last=-Infinity;
+  for(const o of onsets){
+    if(o.weight>=threshold && (o.time-last)>=params.minGap){
+      notes.push({time:o.time, lane:o.lane, judged:false, result:null, critical:!!o.critical});
+      last=o.time;
+    }
+  }
+  return notes;
+}
+
+/* ================= App state ================= */
+let songs=[];
+let builtInSongs=[];
+let dbSongsCache=[];
+const screens={
+  title:document.getElementById('screen-title'),
+  play:document.getElementById('screen-play'),
+  result:document.getElementById('screen-result'),
+};
+function showScreen(name){
+  Object.values(screens).forEach(s=>s.classList.remove('active'));
+  screens[name].classList.add('active');
+}
+
+function base64ToBytes(b64){
+  const bin=atob(b64);
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return bytes;
+}
+function buildEmbeddedSongsList(){
+  const parts=[];
+  if(typeof EMBEDDED_SONGS!=='undefined') parts.push(...EMBEDDED_SONGS);
+  if(typeof EMBEDDED_SONGS_B!=='undefined') parts.push(...EMBEDDED_SONGS_B);
+  if(typeof EMBEDDED_SONGS_C!=='undefined') parts.push(...EMBEDDED_SONGS_C);
+  if(typeof EMBEDDED_SONGS_D!=='undefined') parts.push(...EMBEDDED_SONGS_D);
+  return parts.map((e,idx)=>({
+    id:'builtin-'+idx,
+    name:e.name,
+    duration:0,
+    onsets:[],
+    blob:new Blob([base64ToBytes(e.data)],{type:e.mime}),
+    addedAt:0,
+    builtIn:true,
+    analyzed:false,
+    broken:false,
+    progress:0,
+  }));
+}
+async function analyzeBuiltIns(){
+  for(const song of builtInSongs){
+    if(song.analyzed) continue;
+    await waitWhilePlaying();
+    try{
+      const arrBuf=await song.blob.arrayBuffer();
+      const audioBuffer=await getAudioCtx().decodeAudioData(arrBuf);
+      let lastRender=0;
+      song.onsets=await analyzeBuffer(audioBuffer, p=>{
+        song.progress=p;
+        const now=performance.now();
+        if(now-lastRender>150){ lastRender=now; renderSongList(); }
+      });
+      song.duration=audioBuffer.duration;
+      // audioBuffer is intentionally not cached here (see getAudioBuffer) -
+      // it's re-decoded lazily if/when the user actually plays this song.
+    }catch(err){
+      console.error('builtin analyze failed', song.name, err);
+      song.broken=true;
+    }
+    song.analyzed=true;
+    renderSongList();
+  }
+}
+
+function recombineSongs(){
+  songs=builtInSongs.concat(dbSongsCache);
+  renderSongList();
+}
+async function loadDbSongs(){
+  dbSongsCache=await dbAll();
+  // Songs are only ever written to IndexedDB after analysis has fully
+  // completed, so any record loaded here is analyzed by definition. This
+  // also self-heals records saved before the `analyzed` flag existed,
+  // which would otherwise show "解析中..." forever and never be playable.
+  for(const song of dbSongsCache){
+    song.analyzed=true;
+    song.broken=false;
+  }
+  dbSongsCache.sort((a,b)=>b.addedAt-a.addedAt);
+  recombineSongs();
+}
+async function initSongs(){
+  builtInSongs=buildEmbeddedSongsList();
+  recombineSongs();
+  await loadDbSongs();
+  analyzeBuiltIns();
+}
+
+/* ---------- Chart export (time + lane per note, for manual tuning) ---------- */
+function buildExportDifficulties(song){
+  const diffs={};
+  for(const key of ['easy','normal','hard']){
+    diffs[key]=buildChartNotes(song.onsets,key).map(n=>({
+      time:Math.round(n.time*1000)/1000,
+      lane:n.lane,
+      critical:!!n.critical,
+    }));
+  }
+  return diffs;
+}
+function sanitizeFilename(name){
+  return name.replace(/[\\/:*?"<>|]/g,'_');
+}
+function downloadBlob(blob, filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function exportChartJSON(song){
+  const payload={
+    song:song.name,
+    duration:Math.round(song.duration*1000)/1000,
+    laneCount:LANE_COUNT,
+    laneLayout:{rhythm:[0,1,2],melody:[3,4,5]},
+    generatedAt:new Date().toISOString(),
+    difficulties:buildExportDifficulties(song),
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  downloadBlob(blob, sanitizeFilename(song.name)+'_chart.json');
+}
+function exportChartCSV(song){
+  const diffs=buildExportDifficulties(song);
+  const rows=['difficulty,time_sec,lane,section,critical'];
+  for(const key of ['easy','normal','hard']){
+    for(const n of diffs[key]){
+      const section=n.lane<=2?'rhythm':'melody';
+      rows.push(key+','+n.time+','+n.lane+','+section+','+(n.critical?1:0));
+    }
+  }
+  const blob=new Blob([rows.join('\n')], {type:'text/csv'});
+  downloadBlob(blob, sanitizeFilename(song.name)+'_chart.csv');
+}
+
+function renderSongList(){
+  const el=document.getElementById('songList');
+  el.innerHTML='';
+  if(songs.length===0){
+    const p=document.createElement('div');
+    p.className='empty-hint';
+    p.textContent='まだ音源がありません。上のボタンから追加してください。';
+    el.appendChild(p);
+    return;
+  }
+  for(const song of songs){
+    const card=document.createElement('div');
+    card.className='song-card';
+
+    const top=document.createElement('div');
+    top.className='song-top';
+    const name=document.createElement('div');
+    name.className='song-name';
+    if(song.builtIn){
+      const badge=document.createElement('span');
+      badge.className='badge';
+      badge.textContent='内蔵';
+      name.appendChild(badge);
+      name.appendChild(document.createTextNode(' '+song.name));
+    } else {
+      name.textContent=song.name;
+    }
+    top.appendChild(name);
+    if(!song.builtIn){
+      const del=document.createElement('button');
+      del.className='del-btn';
+      del.textContent='✕';
+      del.title='削除';
+      del.addEventListener('click', async ()=>{
+        if(confirm('「'+song.name+'」を削除しますか？')){
+          await dbDelete(song.id);
+          bufferCache.delete(song.id);
+          await loadDbSongs();
+        }
+      });
+      top.appendChild(del);
+    }
+
+    const meta=document.createElement('div');
+    meta.className='song-meta';
+    card.appendChild(top);
+    card.appendChild(meta);
+
+    if(!song.analyzed){
+      const pct=song.progress ? Math.round(song.progress*100) : 0;
+      meta.textContent='解析中… '+pct+'%';
+      el.appendChild(card);
+      continue;
+    }
+    if(song.broken){
+      meta.textContent='読み込みエラー';
+      el.appendChild(card);
+      continue;
+    }
+    meta.textContent=formatTime(song.duration)+' ・ ノーツ候補 '+song.onsets.length+'個';
+
+    const diffRow=document.createElement('div');
+    diffRow.className='diff-row';
+    for(const key of ['easy','normal','hard']){
+      const n=buildChartNotes(song.onsets,key).length;
+      const btn=document.createElement('button');
+      btn.className='diff-btn diff-'+key;
+      btn.innerHTML=DIFF_PARAMS[key].label+'<small>'+n+' notes</small>';
+      btn.addEventListener('click', ()=>startPlay(song,key));
+      diffRow.appendChild(btn);
+    }
+    card.appendChild(diffRow);
+
+    const exportRow=document.createElement('div');
+    exportRow.className='export-row';
+    const csvBtn=document.createElement('button');
+    csvBtn.className='export-btn';
+    csvBtn.textContent='⤓ CSVで書き出し';
+    csvBtn.addEventListener('click', ()=>exportChartCSV(song));
+    const jsonBtn=document.createElement('button');
+    jsonBtn.className='export-btn';
+    jsonBtn.textContent='⤓ JSONで書き出し';
+    jsonBtn.addEventListener('click', ()=>exportChartJSON(song));
+    exportRow.appendChild(csvBtn);
+    exportRow.appendChild(jsonBtn);
+    card.appendChild(exportRow);
+
+    el.appendChild(card);
+  }
+}
+
+/* ================= Add song flow ================= */
+const AUDIO_EXT_RE=/\.(m4a|mp3|wav|aac|ogg|flac|caf|aif|aiff)$/i;
+function isAudioFile(file){
+  return (file.type && file.type.startsWith('audio')) || AUDIO_EXT_RE.test(file.name);
+}
+async function handleFiles(fileList){
+  const files=Array.from(fileList).filter(isAudioFile);
+  if(files.length===0) return;
+  const progressEl=document.getElementById('addProgress');
+  for(const file of files){
+    progressEl.textContent='解析中: '+file.name+' …';
+    try{
+      const arrBuf=await file.arrayBuffer();
+      const audioBuffer=await getAudioCtx().decodeAudioData(arrBuf);
+      const onsets=await analyzeBuffer(audioBuffer, p=>{
+        progressEl.textContent='解析中: '+file.name+' … '+Math.round(p*100)+'%';
+      });
+      const rec={
+        id:uuid(),
+        name:file.name.replace(/\.[^/.]+$/,''),
+        duration:audioBuffer.duration,
+        onsets,
+        blob:file,
+        addedAt:Date.now(),
+        analyzed:true,
+        broken:false,
+      };
+      await dbPut(rec);
+      dbSongsCache.unshift(rec);
+      recombineSongs();
+    }catch(err){
+      console.error(err);
+      alert('読み込みに失敗しました: '+file.name);
+    }
+  }
+  progressEl.textContent='';
+}
+
+document.getElementById('addBtn').addEventListener('click', ()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e=>{
+  handleFiles(e.target.files);
+  e.target.value='';
+});
+const dropzone=document.getElementById('dropzone');
+['dragenter','dragover'].forEach(ev=>dropzone.addEventListener(ev,e=>{
+  e.preventDefault(); dropzone.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(ev=>dropzone.addEventListener(ev,e=>{
+  e.preventDefault(); dropzone.classList.remove('dragover');
+}));
+dropzone.addEventListener('drop', e=>{
+  if(e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+});
+
+/* ================= Gameplay ================= */
+const LEAD_TIME=1.6;      // seconds a note takes to fall from top to hit line
+const LANE_COUNT=6;
+// Project SEKAI-style 4-tier judgment (Perfect/Great/Good/Bad) + Miss.
+// Only Miss breaks combo; Bad still keeps it alive, matching the reference game.
+const PERFECT_WINDOW=0.04;
+const GREAT_WINDOW=0.08;
+const GOOD_WINDOW=0.12;
+const BAD_WINDOW=0.18;
+const CRITICAL_PERCENTILE=0.88; // top ~12% of onset weight becomes a gold "Critical" note
+const LANE_COLORS=['#ff4d6d','#ff9f4d','#ffd23f','#5ce18a','#3fd6ff','#7c4dff'];
+const LANE_KEYS=['s','d','f','j','k','l'];
+const JUDGE_COLORS={perfect:'#ffd23f',great:'#3fd6ff',good:'#5ce18a',bad:'#b0b0c8',miss:'#ff5566'};
+
+/* ---------- Perspective "road" projection ----------
+   Notes travel from a vanishing point near the horizon toward the
+   camera at the hit line, instead of a flat top-to-bottom fall. */
+const HORIZON_Y_FRAC=0.16;
+const HIT_Y_FRAC=0.82;
+const NEAR_HALF_WIDTH_FRAC=0.46;
+const FAR_HALF_WIDTH_FRAC=0.045;
+const PERSPECTIVE_POWER=2.2;
+function perspectiveAt(p, W, H){
+  const cp=Math.max(0,Math.min(1,p));
+  const eased=Math.pow(cp, PERSPECTIVE_POWER);
+  const horizonY=H*HORIZON_Y_FRAC, hitLineY=H*HIT_Y_FRAC;
+  return {
+    y: horizonY+(hitLineY-horizonY)*eased,
+    halfWidth: W*(FAR_HALF_WIDTH_FRAC+(NEAR_HALF_WIDTH_FRAC-FAR_HALF_WIDTH_FRAC)*eased),
+    scale: 0.22+0.78*eased,
+  };
+}
+function laneCenterX(lane, halfWidth, W){
+  const frac=(lane+0.5)/LANE_COUNT-0.5;
+  return W/2 + frac*2*halfWidth;
+}
+function hexToRgba(hex, alpha){
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return 'rgba('+r+','+g+','+b+','+alpha+')';
+}
+
+let game=null; // active game session state
+
+function computeChart(song, difficulty){
+  const notes=buildChartNotes(song.onsets, difficulty).sort((a,b)=>a.time-b.time);
+  const notesByLane=Array.from({length:LANE_COUNT},()=>[]);
+  for(const n of notes) notesByLane[n.lane].push(n);
+  return {notes, notesByLane};
+}
+
+async function startPlay(song, difficulty){
+  const ctx=getAudioCtx();
+  if(ctx.state==='suspended') await ctx.resume();
+
+  let audioBuffer;
+  try{
+    audioBuffer=await getAudioBuffer(song);
+  }catch(err){
+    console.error(err);
+    alert('音源の再生に失敗しました: '+song.name);
+    return;
+  }
+
+  const chart=computeChart(song, difficulty);
+  const source=ctx.createBufferSource();
+  source.buffer=audioBuffer;
+  source.connect(getMasterGain());
+
+  const analyser=ctx.createAnalyser();
+  analyser.fftSize=256;
+  analyser.smoothingTimeConstant=0.8;
+  source.connect(analyser);
+  const freqData=new Uint8Array(analyser.frequencyBinCount);
+
+  const startTime=ctx.currentTime + LEAD_TIME;
+  let manualStop=false;
+  source.onended=()=>{ if(!manualStop && game && game.source===source) endPlay(); };
+
+  game={
+    song, difficulty, chart, source, startTime,
+    analyser, freqData,
+    particles:[],
+    lastFrameMs:performance.now(),
+    roadPhase:0,
+    score:0, combo:0, maxCombo:0,
+    counts:{perfect:0, great:0, good:0, bad:0, miss:0},
+    life:80,
+    lanePtr:new Array(LANE_COUNT).fill(0),
+    drawIdx:0,
+    judgePopup:{text:'', t:-999},
+    paused:false,
+    ended:false,
+    setManualStop(){ manualStop=true; },
+  };
+
+  source.start(startTime);
+
+  document.getElementById('songNameHud').textContent=song.name+' / '+DIFF_PARAMS[difficulty].label;
+  document.getElementById('scoreDisplay').textContent='0';
+  document.getElementById('comboDisplay').style.display='none';
+  document.getElementById('lifeGaugeFill').style.width='80%';
+  document.getElementById('pauseOverlay').classList.add('hidden');
+  showScreen('play');
+  resizeCanvas();
+  requestAnimationFrame(gameLoop);
+}
+
+function songTimeNow(){
+  return getAudioCtx().currentTime - game.startTime;
+}
+
+function judgeLane(lane){
+  if(!game || game.paused || game.ended) return;
+  const t=songTimeNow();
+  const list=game.chart.notesByLane[lane];
+  let ptr=game.lanePtr[lane];
+  while(ptr<list.length && list[ptr].judged) ptr++;
+  if(ptr<list.length){
+    const note=list[ptr];
+    const diff=Math.abs(note.time - t);
+    if(diff<=BAD_WINDOW){
+      note.judged=true;
+      const result = diff<=PERFECT_WINDOW ? 'perfect'
+        : diff<=GREAT_WINDOW ? 'great'
+        : diff<=GOOD_WINDOW ? 'good'
+        : 'bad';
+      note.result=result;
+      applyJudge(result, lane, note.critical);
+      ptr++;
+    }
+  }
+  game.lanePtr[lane]=ptr;
+}
+
+function spawnHitParticles(lane, color, count){
+  const rect=canvas.getBoundingClientRect();
+  const W=rect.width, H=rect.height;
+  const near=perspectiveAt(1, W, H);
+  const x=laneCenterX(lane, near.halfWidth, W);
+  const y=near.y;
+  for(let i=0;i<count;i++){
+    const angle=Math.random()*Math.PI*2;
+    const speed=60+Math.random()*160;
+    game.particles.push({
+      x, y,
+      vx:Math.cos(angle)*speed*0.5,
+      vy:-Math.abs(Math.sin(angle))*speed-60,
+      life:0, maxLife:0.4+Math.random()*0.25,
+      color,
+    });
+  }
+}
+
+function applyJudge(result, lane, critical){
+  const critMult=critical?1.5:1;
+  const particleColor=critical?'#ffe98a':LANE_COLORS[lane];
+  if(result==='perfect'){
+    game.combo++;
+    game.score+=Math.round((300+Math.min(game.combo,50)*2)*critMult);
+    game.counts.perfect++;
+    game.life=Math.min(100, game.life+0.4);
+    showJudge('PERFECT', JUDGE_COLORS.perfect);
+    spawnHitParticles(lane, particleColor, critical?20:14);
+  } else if(result==='great'){
+    game.combo++;
+    game.score+=Math.round((180+Math.min(game.combo,50)*1.4)*critMult);
+    game.counts.great++;
+    game.life=Math.min(100, game.life+0.2);
+    showJudge('GREAT', JUDGE_COLORS.great);
+    spawnHitParticles(lane, particleColor, critical?16:10);
+  } else if(result==='good'){
+    game.combo++;
+    game.score+=Math.round((90+Math.min(game.combo,50)*0.8)*critMult);
+    game.counts.good++;
+    showJudge('GOOD', JUDGE_COLORS.good);
+    spawnHitParticles(lane, particleColor, 5);
+  } else if(result==='bad'){
+    // Bad still keeps combo alive (Project SEKAI-style) - only Miss breaks it.
+    game.combo++;
+    game.score+=Math.round(30*critMult);
+    game.counts.bad++;
+    game.life=Math.max(0, game.life-1.2);
+    showJudge('BAD', JUDGE_COLORS.bad);
+  } else {
+    game.combo=0;
+    game.counts.miss++;
+    game.life=Math.max(0, game.life-3);
+    showJudge('MISS', JUDGE_COLORS.miss);
+  }
+  game.maxCombo=Math.max(game.maxCombo, game.combo);
+  document.getElementById('scoreDisplay').textContent=String(game.score);
+  document.getElementById('lifeGaugeFill').style.width=game.life+'%';
+  const comboEl=document.getElementById('comboDisplay');
+  if(game.combo>=2){
+    comboEl.style.display='block';
+    document.getElementById('comboNum').textContent=String(game.combo);
+    comboEl.classList.remove('pop');
+    void comboEl.offsetWidth;
+    comboEl.classList.add('pop');
+  } else {
+    comboEl.style.display='none';
+  }
+}
+
+function showJudge(text,color){
+  const el=document.getElementById('judgeDisplay');
+  el.textContent=text;
+  el.style.color=color;
+  el.style.opacity='1';
+  game.judgePopup.t=performance.now();
+  clearTimeout(showJudge._t);
+  showJudge._t=setTimeout(()=>{ el.style.opacity='0'; }, 260);
+}
+
+/* ---------- Canvas ---------- */
+const canvas=document.getElementById('gameCanvas');
+const ctx2d=canvas.getContext('2d');
+function resizeCanvas(){
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.getBoundingClientRect();
+  canvas.width=Math.round(rect.width*dpr);
+  canvas.height=Math.round(rect.height*dpr);
+  ctx2d.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', resizeCanvas);
+
+function gameLoop(){
+  if(!game || game.ended) return;
+  if(!game.paused) draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function draw(){
+  const now=performance.now();
+  const dt=Math.min(0.05, (now-game.lastFrameMs)/1000);
+  game.lastFrameMs=now;
+
+  const rect=canvas.getBoundingClientRect();
+  const W=rect.width, H=rect.height;
+  const horizonY=H*HORIZON_Y_FRAC;
+  const hitLineY=H*HIT_Y_FRAC;
+  const t=songTimeNow();
+
+  game.analyser.getByteFrequencyData(game.freqData);
+  let bassSum=0;
+  const bassBins=8;
+  for(let k=0;k<bassBins;k++) bassSum+=game.freqData[k];
+  const bassLevel=bassSum/(bassBins*255); // 0..1
+
+  ctx2d.clearRect(0,0,W,H);
+  const grad=ctx2d.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#05050c');
+  grad.addColorStop(1,'#0d0d1c');
+  ctx2d.fillStyle=grad;
+  ctx2d.fillRect(0,0,W,H);
+
+  const glowR=Math.max(W,H)*(0.35+0.25*bassLevel);
+  const glow=ctx2d.createRadialGradient(W/2,hitLineY,0,W/2,hitLineY,glowR);
+  glow.addColorStop(0,'rgba(124,77,255,'+(0.10+0.22*bassLevel)+')');
+  glow.addColorStop(1,'rgba(124,77,255,0)');
+  ctx2d.fillStyle=glow;
+  ctx2d.fillRect(0,0,W,H);
+
+  const near=perspectiveAt(1, W, H);
+  const far=perspectiveAt(0, W, H);
+
+  // horizon glow (vanishing point)
+  const hGlow=ctx2d.createRadialGradient(W/2,horizonY,0,W/2,horizonY,W*0.35);
+  hGlow.addColorStop(0,'rgba(63,214,255,'+(0.18+0.15*bassLevel)+')');
+  hGlow.addColorStop(1,'rgba(63,214,255,0)');
+  ctx2d.fillStyle=hGlow;
+  ctx2d.fillRect(0,0,W,H);
+
+  // road surface (trapezoid receding to the horizon)
+  ctx2d.beginPath();
+  ctx2d.moveTo(W/2-far.halfWidth, horizonY);
+  ctx2d.lineTo(W/2+far.halfWidth, horizonY);
+  ctx2d.lineTo(W/2+near.halfWidth, hitLineY);
+  ctx2d.lineTo(W/2-near.halfWidth, hitLineY);
+  ctx2d.closePath();
+  const roadGrad=ctx2d.createLinearGradient(0,horizonY,0,hitLineY);
+  roadGrad.addColorStop(0,'rgba(63,214,255,.10)');
+  roadGrad.addColorStop(1,'rgba(124,77,255,.14)');
+  ctx2d.fillStyle=roadGrad;
+  ctx2d.fill();
+
+  // lane divider lines converging to the vanishing point
+  for(let b=0;b<=LANE_COUNT;b++){
+    const frac=b/LANE_COUNT-0.5;
+    const xFar=W/2+frac*2*far.halfWidth;
+    const xNear=W/2+frac*2*near.halfWidth;
+    ctx2d.strokeStyle= (b===0||b===LANE_COUNT) ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.08)';
+    ctx2d.lineWidth= (b===0||b===LANE_COUNT) ? 2 : 1;
+    ctx2d.beginPath();
+    ctx2d.moveTo(xFar,horizonY);
+    ctx2d.lineTo(xNear,hitLineY);
+    ctx2d.stroke();
+  }
+
+  // scrolling depth rungs for a sense of forward motion
+  game.roadPhase=((game.roadPhase||0)+dt*0.35)%1;
+  const RUNGS=6;
+  for(let r=0;r<RUNGS;r++){
+    const rp=((r/RUNGS)+game.roadPhase)%1;
+    const rpersp=perspectiveAt(rp, W, H);
+    const fadeAlpha=Math.min(rp*3,1)*Math.min((1-rp)*2.2,1);
+    if(fadeAlpha<=0) continue;
+    ctx2d.strokeStyle='rgba(255,255,255,'+(0.10*fadeAlpha)+')';
+    ctx2d.lineWidth=1;
+    ctx2d.beginPath();
+    ctx2d.moveTo(W/2-rpersp.halfWidth, rpersp.y);
+    ctx2d.lineTo(W/2+rpersp.halfWidth, rpersp.y);
+    ctx2d.stroke();
+  }
+
+  ctx2d.strokeStyle='rgba(255,255,255,.45)';
+  ctx2d.lineWidth=3;
+  ctx2d.beginPath();
+  ctx2d.moveTo(W/2-near.halfWidth,hitLineY);
+  ctx2d.lineTo(W/2+near.halfWidth,hitLineY);
+  ctx2d.stroke();
+
+  const notes=game.chart.notes;
+  let i=game.drawIdx;
+  while(i<notes.length && notes[i].judged && (notes[i].time - t) < -0.3) i++;
+  game.drawIdx=i;
+
+  for(; i<notes.length; i++){
+    const n=notes[i];
+    const until=n.time - t;
+    if(until > LEAD_TIME+0.1) break;
+    if(!n.judged && until < -BAD_WINDOW){
+      n.judged=true; n.result='miss';
+      applyJudge('miss', n.lane, n.critical);
+    }
+    if(n.judged && n.result!=='miss') continue;
+    if(n.judged && until < -0.3) continue;
+
+    const p=1-Math.max(0,Math.min(1, until/LEAD_TIME));
+    const persp=perspectiveAt(p, W, H);
+    const laneWidthAtP=persp.halfWidth*2/LANE_COUNT;
+    const x=laneCenterX(n.lane, persp.halfWidth, W);
+    const y=persp.y;
+    const noteW=laneWidthAtP*0.78;
+    const noteH=Math.max(8, H*(n.critical?0.038:0.032)*persp.scale);
+    if(y < horizonY-20 || y > hitLineY+40) continue;
+
+    const baseColor= n.critical ? '#ffd23f' : LANE_COLORS[n.lane];
+
+    if(!n.judged){
+      const glowR=noteW*(n.critical?1.5:1.1);
+      const noteGlow=ctx2d.createRadialGradient(x,y,0,x,y,glowR);
+      noteGlow.addColorStop(0, hexToRgba(baseColor, (n.critical?0.65:0.45)*persp.scale));
+      noteGlow.addColorStop(1, hexToRgba(baseColor, 0));
+      ctx2d.fillStyle=noteGlow;
+      ctx2d.beginPath();
+      ctx2d.arc(x,y,glowR,0,Math.PI*2);
+      ctx2d.fill();
+    }
+
+    if(n.judged){
+      ctx2d.fillStyle='rgba(255,85,102,.5)';
+    } else if(n.critical){
+      const critGrad=ctx2d.createLinearGradient(x-noteW/2,y,x+noteW/2,y);
+      critGrad.addColorStop(0,'#ffd23f');
+      critGrad.addColorStop(0.5,'#fff6cc');
+      critGrad.addColorStop(1,'#ffd23f');
+      ctx2d.fillStyle=critGrad;
+    } else {
+      ctx2d.fillStyle=LANE_COLORS[n.lane];
+    }
+    ctx2d.shadowColor=baseColor;
+    ctx2d.shadowBlur= n.judged? 0 : (n.critical?18:10)*persp.scale;
+    ctx2d.beginPath();
+    ctx2d.roundRect(x-noteW/2, y-noteH/2, noteW, noteH, Math.max(3,8*persp.scale));
+    ctx2d.fill();
+    if(n.critical && !n.judged){
+      ctx2d.strokeStyle='rgba(255,255,255,.85)';
+      ctx2d.lineWidth=Math.max(1,1.5*persp.scale);
+      ctx2d.stroke();
+    }
+    ctx2d.shadowBlur=0;
+  }
+
+  const particles=game.particles;
+  for(let pi=particles.length-1; pi>=0; pi--){
+    const p=particles[pi];
+    p.life+=dt;
+    if(p.life>=p.maxLife){ particles.splice(pi,1); continue; }
+    p.x+=p.vx*dt;
+    p.y+=p.vy*dt;
+    p.vy+=260*dt;
+    const alpha=1-(p.life/p.maxLife);
+    ctx2d.globalAlpha=alpha;
+    ctx2d.fillStyle=p.color;
+    ctx2d.beginPath();
+    ctx2d.arc(p.x,p.y,3+3*alpha,0,Math.PI*2);
+    ctx2d.fill();
+  }
+  ctx2d.globalAlpha=1;
+
+  for(let lane=0; lane<LANE_COUNT; lane++){
+    const laneWidthNear=near.halfWidth*2/LANE_COUNT;
+    const x=laneCenterX(lane, near.halfWidth, W);
+    ctx2d.fillStyle=LANE_COLORS[lane];
+    ctx2d.globalAlpha=0.9;
+    ctx2d.beginPath();
+    ctx2d.roundRect(x-laneWidthNear*0.22, hitLineY-6, laneWidthNear*0.44, 6, 3);
+    ctx2d.fill();
+    ctx2d.globalAlpha=1;
+  }
+
+  if(t < -0.05){
+    ctx2d.textAlign='center';
+    ctx2d.fillStyle='#fff';
+    ctx2d.globalAlpha=0.92;
+    ctx2d.font='bold '+Math.round(H*0.16)+'px sans-serif';
+    ctx2d.fillText(String(Math.max(1,Math.ceil(-t))), W/2, H*0.42);
+    ctx2d.font='bold '+Math.round(H*0.032)+'px sans-serif';
+    ctx2d.fillText('まもなくスタート ノーツがラインに来たらキー/タップ！', W/2, H*0.5);
+    ctx2d.globalAlpha=1;
+    ctx2d.textAlign='left';
+  }
+
+  if(t > game.song.duration + LEAD_TIME + 0.5 && !game.ended){
+    endPlay();
+  }
+}
+
+/* ---------- Input ---------- */
+document.querySelectorAll('.tzone').forEach(zone=>{
+  const lane=Number(zone.dataset.lane);
+  const press=e=>{ e.preventDefault(); zone.classList.add('active'); judgeLane(lane); };
+  const release=()=>zone.classList.remove('active');
+  zone.addEventListener('pointerdown', press);
+  zone.addEventListener('pointerup', release);
+  zone.addEventListener('pointercancel', release);
+  zone.addEventListener('pointerleave', release);
+});
+
+window.addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  const idx=LANE_KEYS.indexOf(e.key.toLowerCase());
+  if(idx>=0 && screens.play.classList.contains('active')){
+    judgeLane(idx);
+    const zone=document.querySelector('.tzone[data-lane="'+idx+'"]');
+    if(zone) zone.classList.add('active');
+  }
+  if(e.key===' ' && screens.play.classList.contains('active')){
+    e.preventDefault();
+    togglePause();
+  }
+});
+window.addEventListener('keyup', e=>{
+  const idx=LANE_KEYS.indexOf(e.key.toLowerCase());
+  if(idx>=0){
+    const zone=document.querySelector('.tzone[data-lane="'+idx+'"]');
+    if(zone) zone.classList.remove('active');
+  }
+});
+
+/* ---------- Pause / quit / end ---------- */
+function togglePause(){
+  if(!game || game.ended) return;
+  const ctx=getAudioCtx();
+  if(!game.paused){
+    game.paused=true;
+    ctx.suspend();
+    document.getElementById('pauseOverlay').classList.remove('hidden');
+  } else {
+    resumeGame();
+  }
+}
+function resumeGame(){
+  if(!game) return;
+  game.paused=false;
+  getAudioCtx().resume();
+  document.getElementById('pauseOverlay').classList.add('hidden');
+  requestAnimationFrame(gameLoop);
+}
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('resumeBtn').addEventListener('click', resumeGame);
+document.getElementById('quitBtn').addEventListener('click', ()=>{
+  if(game){
+    game.ended=true;
+    game.setManualStop();
+    try{ game.source.stop(); }catch(err){}
+    getAudioCtx().resume();
+  }
+  showScreen('title');
+});
+
+function endPlay(){
+  if(!game || game.ended) return;
+  game.ended=true;
+  const total=game.chart.notes.length;
+  const c=game.counts;
+  const acc = total>0 ? ((c.perfect*1 + c.great*0.8 + c.good*0.5 + c.bad*0.2)/total*100) : 100;
+  let rank='D';
+  if(acc>=95) rank='S';
+  else if(acc>=85) rank='A';
+  else if(acc>=70) rank='B';
+  else if(acc>=50) rank='C';
+
+  const rankColors={S:'#ffd23f',A:'#5ce18a',B:'#3fd6ff',C:'#ff9f4d',D:'#ff5566'};
+  const rankEl=document.getElementById('rankBig');
+  rankEl.textContent=rank;
+  rankEl.style.color=rankColors[rank];
+  rankEl.classList.remove('pop');
+  void rankEl.offsetWidth;
+  rankEl.classList.add('pop');
+  document.getElementById('resultBody').innerHTML=
+    '<div class="row"><span>スコア</span><b>'+game.score+'</b></div>'+
+    '<div class="row"><span>最大コンボ</span><b>'+game.maxCombo+'</b></div>'+
+    '<div class="row"><span>精度</span><b>'+acc.toFixed(1)+'%</b></div>'+
+    '<div class="row"><span>PERFECT</span><b>'+c.perfect+'</b></div>'+
+    '<div class="row"><span>GREAT</span><b>'+c.great+'</b></div>'+
+    '<div class="row"><span>GOOD</span><b>'+c.good+'</b></div>'+
+    '<div class="row"><span>BAD</span><b>'+c.bad+'</b></div>'+
+    '<div class="row"><span>MISS</span><b>'+c.miss+'</b></div>';
+
+  const lastSong=game.song, lastDiff=game.difficulty;
+  document.getElementById('retryBtn').onclick=()=>startPlay(lastSong,lastDiff);
+  showScreen('result');
+}
+document.getElementById('backBtn').addEventListener('click', ()=>showScreen('title'));
+
+/* ================= Init ================= */
+for(const el of [document.getElementById('volumeSliderTitle'), document.getElementById('volumeSliderPause')]){
+  el.addEventListener('input', e=>setVolumeLevel(Number(e.target.value)));
+}
+setVolumeLevel(getVolumeLevel());
+initSongs();
+</script>
+</body>
+</html>
