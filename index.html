@@ -150,6 +150,9 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 </div>
 
 <script src="songs-data.js"></script>
+<script src="songs-data-b.js"></script>
+<script src="songs-data-c.js"></script>
+<script src="songs-data-d.js"></script>
 <script>
 'use strict';
 
@@ -238,9 +241,13 @@ function setVolumeLevel(level){
     if(el) el.textContent=String(level);
   }
 }
+// Holds at most one decoded AudioBuffer at a time. With 15 built-in tracks
+// (one over an hour long), keeping every decode in memory simultaneously
+// would use several GB of RAM and reliably crash mobile browsers.
 const bufferCache=new Map();
 async function getAudioBuffer(song){
   if(bufferCache.has(song.id)) return bufferCache.get(song.id);
+  bufferCache.clear();
   const arrBuf=await song.blob.arrayBuffer();
   const buf=await getAudioCtx().decodeAudioData(arrBuf);
   bufferCache.set(song.id,buf);
@@ -472,8 +479,12 @@ function base64ToBytes(b64){
   return bytes;
 }
 function buildEmbeddedSongsList(){
-  if(typeof EMBEDDED_SONGS==='undefined') return [];
-  return EMBEDDED_SONGS.map((e,idx)=>({
+  const parts=[];
+  if(typeof EMBEDDED_SONGS!=='undefined') parts.push(...EMBEDDED_SONGS);
+  if(typeof EMBEDDED_SONGS_B!=='undefined') parts.push(...EMBEDDED_SONGS_B);
+  if(typeof EMBEDDED_SONGS_C!=='undefined') parts.push(...EMBEDDED_SONGS_C);
+  if(typeof EMBEDDED_SONGS_D!=='undefined') parts.push(...EMBEDDED_SONGS_D);
+  return parts.map((e,idx)=>({
     id:'builtin-'+idx,
     name:e.name,
     duration:0,
@@ -499,7 +510,8 @@ async function analyzeBuiltIns(){
         if(now-lastRender>150){ lastRender=now; renderSongList(); }
       });
       song.duration=audioBuffer.duration;
-      bufferCache.set(song.id, audioBuffer);
+      // audioBuffer is intentionally not cached here (see getAudioBuffer) -
+      // it's re-decoded lazily if/when the user actually plays this song.
     }catch(err){
       console.error('builtin analyze failed', song.name, err);
       song.broken=true;
@@ -637,7 +649,6 @@ async function handleFiles(fileList){
         broken:false,
       };
       await dbPut(rec);
-      bufferCache.set(rec.id, audioBuffer);
       dbSongsCache.unshift(rec);
       recombineSongs();
     }catch(err){
