@@ -48,6 +48,9 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 .diff-easy{background:#5ce18a;}
 .diff-normal{background:#ffd23f;}
 .diff-hard{background:#ff5566;color:#fff;}
+.export-row{display:flex;gap:8px;margin-top:8px;}
+.export-btn{flex:1;background:none;border:1px solid #2c2c54;border-radius:8px;padding:6px 4px;font-size:11px;color:#9aa0c0;cursor:pointer;}
+.export-btn:active{background:rgba(255,255,255,.06);}
 
 /* ---------- Play screen ---------- */
 #screen-play{background:#05050c;}
@@ -633,6 +636,56 @@ async function initSongs(){
   analyzeBuiltIns();
 }
 
+/* ---------- Chart export (time + lane per note, for manual tuning) ---------- */
+function buildExportDifficulties(song){
+  const diffs={};
+  for(const key of ['easy','normal','hard']){
+    diffs[key]=buildChartNotes(song.onsets,key).map(n=>({
+      time:Math.round(n.time*1000)/1000,
+      lane:n.lane,
+      critical:!!n.critical,
+    }));
+  }
+  return diffs;
+}
+function sanitizeFilename(name){
+  return name.replace(/[\\/:*?"<>|]/g,'_');
+}
+function downloadBlob(blob, filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function exportChartJSON(song){
+  const payload={
+    song:song.name,
+    duration:Math.round(song.duration*1000)/1000,
+    laneCount:LANE_COUNT,
+    laneLayout:{rhythm:[0,1,2],melody:[3,4,5]},
+    generatedAt:new Date().toISOString(),
+    difficulties:buildExportDifficulties(song),
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  downloadBlob(blob, sanitizeFilename(song.name)+'_chart.json');
+}
+function exportChartCSV(song){
+  const diffs=buildExportDifficulties(song);
+  const rows=['difficulty,time_sec,lane,section,critical'];
+  for(const key of ['easy','normal','hard']){
+    for(const n of diffs[key]){
+      const section=n.lane<=2?'rhythm':'melody';
+      rows.push(key+','+n.time+','+n.lane+','+section+','+(n.critical?1:0));
+    }
+  }
+  const blob=new Blob([rows.join('\n')], {type:'text/csv'});
+  downloadBlob(blob, sanitizeFilename(song.name)+'_chart.csv');
+}
+
 function renderSongList(){
   const el=document.getElementById('songList');
   el.innerHTML='';
@@ -705,6 +758,21 @@ function renderSongList(){
       diffRow.appendChild(btn);
     }
     card.appendChild(diffRow);
+
+    const exportRow=document.createElement('div');
+    exportRow.className='export-row';
+    const csvBtn=document.createElement('button');
+    csvBtn.className='export-btn';
+    csvBtn.textContent='⤓ CSVで書き出し';
+    csvBtn.addEventListener('click', ()=>exportChartCSV(song));
+    const jsonBtn=document.createElement('button');
+    jsonBtn.className='export-btn';
+    jsonBtn.textContent='⤓ JSONで書き出し';
+    jsonBtn.addEventListener('click', ()=>exportChartJSON(song));
+    exportRow.appendChild(csvBtn);
+    exportRow.appendChild(jsonBtn);
+    card.appendChild(exportRow);
+
     el.appendChild(card);
   }
 }
