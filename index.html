@@ -10,7 +10,7 @@
 <meta http-equiv="Expires" content="0">
 <title>リズムビート</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-touch-callout:none;-webkit-user-select:none;}
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0a14;overscroll-behavior:none;font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;color:#eef0ff;}
 body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #app{width:100%;height:100%;position:relative;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);}
@@ -59,7 +59,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #lifeGaugeWrap{position:absolute;top:0;left:0;right:0;height:5px;background:rgba(255,255,255,.08);z-index:6;}
 #lifeGaugeFill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#5ce18a,#3fd6ff,#7c4dff);transition:width .25s ease-out;}
 #touchZones{position:absolute;left:0;right:0;bottom:0;top:0;display:flex;z-index:3;}
-.tzone{flex:1;border-left:1px solid rgba(255,255,255,.03);display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(6% + env(safe-area-inset-bottom));transition:background .08s;}
+.tzone{flex:1;border-left:1px solid rgba(255,255,255,.03);display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(6% + env(safe-area-inset-bottom));transition:background .08s;touch-action:none;-webkit-user-drag:none;}
 .tzone:first-child{border-left:none;}
 .tzone .keycap{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#0a0a14;opacity:.9;pointer-events:none;}
 .tzone.active{background:rgba(255,255,255,.06);}
@@ -322,7 +322,7 @@ let game=null; // active game session state
 
 function computeChart(song, difficulty){
   const notes=song.difficulties[difficulty]
-    .map(n=>({time:n.time, lane:n.lane, critical:!!n.critical, judged:false, result:null}))
+    .map(n=>({time:n.time, lane:n.lane, critical:!!n.critical, holdDuration:n.holdDuration||0, judged:false, result:null}))
     .sort((a,b)=>a.time-b.time);
   const notesByLane=Array.from({length:LANE_COUNT},()=>[]);
   for(const n of notes) notesByLane[n.lane].push(n);
@@ -367,6 +367,8 @@ async function startPlay(song, difficulty){
     counts:{perfect:0, great:0, good:0, bad:0, miss:0},
     life:80,
     lanePtr:new Array(LANE_COUNT).fill(0),
+    heldKeys:new Array(LANE_COUNT).fill(false),
+    activeHolds:new Array(LANE_COUNT).fill(null),
     drawIdx:0,
     judgePopup:{text:'', t:-999},
     paused:false,
@@ -392,6 +394,7 @@ function songTimeNow(){
 
 function judgeLane(lane){
   if(!game || game.paused || game.ended) return;
+  game.heldKeys[lane]=true;
   const t=songTimeNow();
   const list=game.chart.notesByLane[lane];
   let ptr=game.lanePtr[lane];
@@ -407,10 +410,22 @@ function judgeLane(lane){
         : 'bad';
       note.result=result;
       applyJudge(result, lane, note.critical);
+      if(note.holdDuration>0) game.activeHolds[lane]=note;
       ptr++;
     }
   }
   game.lanePtr[lane]=ptr;
+}
+
+// Called on key/touch release: if a hold note's key was let go before its
+// tail time, it's a broken hold (the head hit already scored, so no further
+// penalty - it just stops rendering/tracking as "being held").
+function releaseLane(lane){
+  if(!game) return;
+  game.heldKeys[lane]=false;
+  const note=game.activeHolds[lane];
+  if(note && !note.holdCompleted) note.holdBroken=true;
+  game.activeHolds[lane]=null;
 }
 
 function spawnHitParticles(lane, color, count){
@@ -491,6 +506,17 @@ function showJudge(text,color){
   game.judgePopup.t=performance.now();
   clearTimeout(showJudge._t);
   showJudge._t=setTimeout(()=>{ el.style.opacity='0'; }, 260);
+}
+
+// A hold note held continuously through its full duration earns a small
+// bonus on top of whatever the initial head press already scored.
+function completeHold(note){
+  note.holdCompleted=true;
+  game.activeHolds[note.lane]=null;
+  const bonus=Math.round((80+Math.min(game.combo,50)*0.5)*(note.critical?1.5:1));
+  game.score+=bonus;
+  document.getElementById('scoreDisplay').textContent=String(game.score);
+  spawnHitParticles(note.lane, note.critical?'#ffe98a':LANE_COLORS[note.lane], note.critical?10:6);
 }
 
 /* ---------- Canvas ---------- */
@@ -603,7 +629,12 @@ function draw(){
 
   const notes=game.chart.notes;
   let i=game.drawIdx;
-  while(i<notes.length && notes[i].judged && (notes[i].time - t) < -0.3) i++;
+  // Don't advance past a note that's still an active hold - its head can be
+  // long past the 0.3s fade window while the tail (up to a few seconds
+  // later) hasn't resolved yet, and it still needs to be visited each frame
+  // to detect completion and keep rendering its remaining body.
+  while(i<notes.length && notes[i].judged && (notes[i].time - t) < -0.3
+        && !(notes[i].holdDuration>0 && game.activeHolds[notes[i].lane]===notes[i])) i++;
   game.drawIdx=i;
 
   for(; i<notes.length; i++){
@@ -614,35 +645,66 @@ function draw(){
       n.judged=true; n.result='miss';
       applyJudge('miss', n.lane, n.critical);
     }
-    if(n.judged && n.result!=='miss') continue;
-    if(n.judged && until < -0.3) continue;
 
-    const p=1-Math.max(0,Math.min(1, until/LEAD_TIME));
-    const persp=perspectiveAt(p, W, H);
-    const laneWidthAtP=persp.halfWidth*2/LANE_COUNT;
-    const x=laneCenterX(n.lane, persp.halfWidth, W);
-    const y=persp.y;
-    const noteW=laneWidthAtP*0.78;
-    const noteH=Math.max(8, H*(n.critical?0.038:0.032)*persp.scale);
-    if(y < horizonY-20 || y > hitLineY+40) continue;
+    let isHoldActive = n.holdDuration>0 && game.activeHolds[n.lane]===n;
+    if(isHoldActive){
+      const tailUntil=(n.time+n.holdDuration)-t;
+      if(tailUntil<=0){ completeHold(n); isHoldActive=false; }
+    }
+    if(n.judged && n.result==='miss'){
+      if(until < -0.3) continue;
+    } else if(n.judged && !isHoldActive){
+      continue;
+    }
+
+    // Once judged, a hold's head is "consumed" and pinned at the hit line;
+    // only the still-outstanding tail keeps approaching from the distance.
+    const headUntil = n.judged ? 0 : until;
+    const tailUntil = n.holdDuration>0 ? (n.time+n.holdDuration-t) : headUntil;
+    const pHead=1-Math.max(0,Math.min(1, headUntil/LEAD_TIME));
+    const perspHead=perspectiveAt(pHead, W, H);
+    const laneWidthHead=perspHead.halfWidth*2/LANE_COUNT;
+    const xHead=laneCenterX(n.lane, perspHead.halfWidth, W);
+    const yHead=perspHead.y;
+    const noteW=laneWidthHead*0.78;
+    const noteH=Math.max(8, H*(n.critical?0.038:0.032)*perspHead.scale);
+    if(yHead < horizonY-20 || yHead > hitLineY+40) continue;
 
     const baseColor= n.critical ? '#ffd23f' : LANE_COLORS[n.lane];
 
-    if(!n.judged){
-      const glowR=noteW*(n.critical?1.5:1.1);
-      const noteGlow=ctx2d.createRadialGradient(x,y,0,x,y,glowR);
-      noteGlow.addColorStop(0, hexToRgba(baseColor, (n.critical?0.65:0.45)*persp.scale));
-      noteGlow.addColorStop(1, hexToRgba(baseColor, 0));
-      ctx2d.fillStyle=noteGlow;
+    if(n.holdDuration>0){
+      const pTail=1-Math.max(0,Math.min(1, tailUntil/LEAD_TIME));
+      const perspTail=perspectiveAt(pTail, W, H);
+      const laneWidthTail=perspTail.halfWidth*2/LANE_COUNT;
+      const xTail=laneCenterX(n.lane, perspTail.halfWidth, W);
+      const bodyWHead=noteW*0.6, bodyWTail=laneWidthTail*0.78*0.6;
       ctx2d.beginPath();
-      ctx2d.arc(x,y,glowR,0,Math.PI*2);
+      ctx2d.moveTo(xTail-bodyWTail/2, perspTail.y);
+      ctx2d.lineTo(xTail+bodyWTail/2, perspTail.y);
+      ctx2d.lineTo(xHead+bodyWHead/2, yHead);
+      ctx2d.lineTo(xHead-bodyWHead/2, yHead);
+      ctx2d.closePath();
+      ctx2d.fillStyle=hexToRgba(isHoldActive?'#ffffff':baseColor, isHoldActive?0.5:0.26);
       ctx2d.fill();
     }
 
-    if(n.judged){
+    if(!n.judged){
+      const glowR=noteW*(n.critical?1.5:1.1);
+      const noteGlow=ctx2d.createRadialGradient(xHead,yHead,0,xHead,yHead,glowR);
+      noteGlow.addColorStop(0, hexToRgba(baseColor, (n.critical?0.65:0.45)*perspHead.scale));
+      noteGlow.addColorStop(1, hexToRgba(baseColor, 0));
+      ctx2d.fillStyle=noteGlow;
+      ctx2d.beginPath();
+      ctx2d.arc(xHead,yHead,glowR,0,Math.PI*2);
+      ctx2d.fill();
+    }
+
+    if(n.judged && n.result==='miss'){
       ctx2d.fillStyle='rgba(255,85,102,.5)';
+    } else if(isHoldActive){
+      ctx2d.fillStyle='#ffffff';
     } else if(n.critical){
-      const critGrad=ctx2d.createLinearGradient(x-noteW/2,y,x+noteW/2,y);
+      const critGrad=ctx2d.createLinearGradient(xHead-noteW/2,yHead,xHead+noteW/2,yHead);
       critGrad.addColorStop(0,'#ffd23f');
       critGrad.addColorStop(0.5,'#fff6cc');
       critGrad.addColorStop(1,'#ffd23f');
@@ -651,13 +713,13 @@ function draw(){
       ctx2d.fillStyle=LANE_COLORS[n.lane];
     }
     ctx2d.shadowColor=baseColor;
-    ctx2d.shadowBlur= n.judged? 0 : (n.critical?18:10)*persp.scale;
+    ctx2d.shadowBlur= (n.judged && !isHoldActive)? 0 : (n.critical?18:10)*perspHead.scale;
     ctx2d.beginPath();
-    ctx2d.roundRect(x-noteW/2, y-noteH/2, noteW, noteH, Math.max(3,8*persp.scale));
+    ctx2d.roundRect(xHead-noteW/2, yHead-noteH/2, noteW, noteH, Math.max(3,8*perspHead.scale));
     ctx2d.fill();
     if(n.critical && !n.judged){
       ctx2d.strokeStyle='rgba(255,255,255,.85)';
-      ctx2d.lineWidth=Math.max(1,1.5*persp.scale);
+      ctx2d.lineWidth=Math.max(1,1.5*perspHead.scale);
       ctx2d.stroke();
     }
     ctx2d.shadowBlur=0;
@@ -712,11 +774,15 @@ function draw(){
 document.querySelectorAll('.tzone').forEach(zone=>{
   const lane=Number(zone.dataset.lane);
   const press=e=>{ e.preventDefault(); zone.classList.add('active'); judgeLane(lane); };
-  const release=()=>zone.classList.remove('active');
+  const release=e=>{ if(e) e.preventDefault(); zone.classList.remove('active'); releaseLane(lane); };
   zone.addEventListener('pointerdown', press);
   zone.addEventListener('pointerup', release);
   zone.addEventListener('pointercancel', release);
   zone.addEventListener('pointerleave', release);
+  // Suppress mobile long-press gestures (text-selection loupe, native
+  // "copy/share" callout, context menu) so holding a note down doesn't
+  // trigger the OS instead of the game.
+  zone.addEventListener('contextmenu', e=>e.preventDefault());
 });
 
 window.addEventListener('keydown', e=>{
@@ -735,6 +801,7 @@ window.addEventListener('keydown', e=>{
 window.addEventListener('keyup', e=>{
   const idx=LANE_KEYS.indexOf(e.key.toLowerCase());
   if(idx>=0){
+    releaseLane(idx);
     const zone=document.querySelector('.tzone[data-lane="'+idx+'"]');
     if(zone) zone.classList.remove('active');
   }

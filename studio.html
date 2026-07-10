@@ -10,7 +10,7 @@
 <meta http-equiv="Expires" content="0">
 <title>リズムビート・スタジオ【開発者ツール】</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-touch-callout:none;-webkit-user-select:none;}
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0a14;overscroll-behavior:none;font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;color:#eef0ff;}
 body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #app{width:100%;height:100%;position:relative;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);}
@@ -70,7 +70,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #lifeGaugeWrap{position:absolute;top:0;left:0;right:0;height:5px;background:rgba(255,255,255,.08);z-index:6;}
 #lifeGaugeFill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#5ce18a,#3fd6ff,#7c4dff);transition:width .25s ease-out;}
 #touchZones{position:absolute;left:0;right:0;bottom:0;top:0;display:flex;z-index:3;}
-.tzone{flex:1;border-left:1px solid rgba(255,255,255,.03);display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(6% + env(safe-area-inset-bottom));transition:background .08s;}
+.tzone{flex:1;border-left:1px solid rgba(255,255,255,.03);display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(6% + env(safe-area-inset-bottom));transition:background .08s;touch-action:none;-webkit-user-drag:none;}
 .tzone:first-child{border-left:none;}
 .tzone .keycap{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#0a0a14;opacity:.9;pointer-events:none;}
 .tzone.active{background:rgba(255,255,255,.06);}
@@ -373,22 +373,18 @@ async function analyzeBuffer(audioBuffer, onProgress){
   const binFreq=new Float32Array(half);
   for(let k=0;k<half;k++) binFreq[k]=k*sr/FFT_SIZE;
 
-  // Rhythm/melody band split, mirroring a "left = drums/bass, right = lead
-  // melody" lane layout: low frequencies (kick/bass) drive the rhythm side,
-  // mid/high frequencies (vocal/guitar) drive the melody side, and the
-  // dominant frequency within each band acts as a rough pitch proxy for
-  // choosing the sub-lane (higher pitch -> further right).
-  const LOW_BAND_MAX_HZ=200;
-  const MELODY_MIN_HZ=200, MELODY_MAX_HZ=5000;
-  // Spectral flatness is only meaningful over a musically "populated" band -
-  // computed across the full spectrum up to Nyquist, the geometric mean gets
-  // crushed to near-zero by the mostly-silent upper spectrum regardless of
-  // percussiveness, making flatness useless for classification.
+  // Instrument-role lane layout: lanes 0-2 = drum kit (kick/snare/cymbal,
+  // ordered low->high frequency), lanes 3-5 = pitched instruments
+  // (bass/vocal/guitar, ordered low->high). The primary drum-vs-pitched
+  // split is spectral flatness (percussiveness) alone now - low-frequency
+  // energy used to double as a "rhythm" signal, but that wrongly grouped
+  // bass in with drums; bass is tonal/sustained, so it belongs with the
+  // pitched instruments and is separated purely by being the lowest-pitched
+  // of the three.
+  const DOMINANT_MIN_HZ=40, DOMINANT_MAX_HZ=12000;
   const FLATNESS_MIN_HZ=100, FLATNESS_MAX_HZ=8000;
   const totalEnergyArr=new Float32Array(numFrames);
-  const lowEnergyArr=new Float32Array(numFrames);
-  const lowPeakFreqArr=new Float32Array(numFrames);
-  const melodyPeakFreqArr=new Float32Array(numFrames);
+  const dominantFreqArr=new Float32Array(numFrames);
   const flatnessArr=new Float32Array(numFrames);
   let flatnessBinCount=0;
   for(let k=1;k<half;k++) if(binFreq[k]>=FLATNESS_MIN_HZ && binFreq[k]<=FLATNESS_MAX_HZ) flatnessBinCount++;
@@ -401,9 +397,9 @@ async function analyzeBuffer(audioBuffer, onProgress){
     const start=f*HOP;
     for(let i=0;i<FFT_SIZE;i++){ reBuf[i]=mono[start+i]*win[i]; imBuf[i]=0; }
     fftInPlace(reBuf, imBuf);
-    let fluxSum=0, energySum=0, lowEnergy=0;
+    let fluxSum=0, energySum=0;
     let flatEnergySum=0, flatLogSum=0;
-    let lowPeakMag=0, lowPeakFreq=0, melodyPeakMag=0, melodyPeakFreq=0;
+    let domPeakMag=0, domPeakFreq=0;
     for(let k=1;k<half;k++){
       const mag=Math.sqrt(reBuf[k]*reBuf[k]+imBuf[k]*imBuf[k]);
       const logMag=Math.log1p(mag);
@@ -412,11 +408,8 @@ async function analyzeBuffer(audioBuffer, onProgress){
       energySum+=mag;
       prevMag[k]=logMag;
       const f_hz=binFreq[k];
-      if(f_hz<LOW_BAND_MAX_HZ){
-        lowEnergy+=mag;
-        if(mag>lowPeakMag){ lowPeakMag=mag; lowPeakFreq=f_hz; }
-      } else if(f_hz>=MELODY_MIN_HZ && f_hz<=MELODY_MAX_HZ){
-        if(mag>melodyPeakMag){ melodyPeakMag=mag; melodyPeakFreq=f_hz; }
+      if(f_hz>=DOMINANT_MIN_HZ && f_hz<=DOMINANT_MAX_HZ && mag>domPeakMag){
+        domPeakMag=mag; domPeakFreq=f_hz;
       }
       if(f_hz>=FLATNESS_MIN_HZ && f_hz<=FLATNESS_MAX_HZ){
         flatEnergySum+=mag;
@@ -425,9 +418,7 @@ async function analyzeBuffer(audioBuffer, onProgress){
     }
     flux[f]=fluxSum;
     totalEnergyArr[f]=energySum;
-    lowEnergyArr[f]=lowEnergy;
-    lowPeakFreqArr[f]=lowPeakFreq;
-    melodyPeakFreqArr[f]=melodyPeakFreq;
+    dominantFreqArr[f]=domPeakFreq;
     // Spectral flatness (geometric mean / arithmetic mean of the magnitude
     // spectrum) over the populated band: near 1 for broadband/noisy content
     // (drum hits - percussive regardless of pitch), near 0 for tonal content
@@ -460,16 +451,40 @@ async function analyzeBuffer(audioBuffer, onProgress){
     const localMean=sum/(hi-lo+1);
     const threshold=localMean*1.4+0.02;
     if(flux[f]>threshold){
-      const rhythmRatio = totalEnergyArr[f]>1e-6 ? lowEnergyArr[f]/totalEnergyArr[f] : 0;
       onsetsRaw.push({
         time:f*hopSec,
+        frameIdx:f,
         weight:flux[f]-localMean,
-        rhythmRatio,
         flatness:flatnessArr[f],
-        lowPeakFreq:lowPeakFreqArr[f],
-        melodyPeakFreq:melodyPeakFreqArr[f],
+        dominantFreq:dominantFreqArr[f],
+        holdDuration:0,
       });
     }
+  }
+
+  // Sustain/hold detection: a note is a "hold" if the sound energy stays up
+  // for a while after its onset instead of decaying immediately - a rung
+  // bass/vocal/guitar note, or a ringing cymbal. Scans forward from each
+  // onset's frame until energy drops below a fraction of its peak, capped by
+  // the next onset (so one long hold can't swallow the next note) and by a
+  // generous absolute ceiling.
+  const SUSTAIN_ENERGY_RATIO=0.6;
+  const MIN_HOLD_SEC=0.45;
+  const MAX_HOLD_SEC=3.0;
+  const maxHoldFrames=Math.round(MAX_HOLD_SEC/hopSec);
+  for(let i=0;i<onsetsRaw.length;i++){
+    const o=onsetsRaw[i];
+    const f0=o.frameIdx;
+    const peakE=totalEnergyArr[f0];
+    const nextFrameIdx=(i+1<onsetsRaw.length) ? onsetsRaw[i+1].frameIdx : numFrames;
+    const maxEnd=Math.min(nextFrameIdx, f0+maxHoldFrames, numFrames-1);
+    let endF=f0;
+    for(let f=f0+1; f<maxEnd; f++){
+      if(totalEnergyArr[f] < peakE*SUSTAIN_ENERGY_RATIO) break;
+      endF=f;
+    }
+    const holdSec=(endF-f0)*hopSec;
+    o.holdDuration = holdSec>=MIN_HOLD_SEC ? holdSec : 0;
   }
 
   const beatPeriod=numFrames>0?estimateTempo(flux, hopSec):0.5;
@@ -486,16 +501,15 @@ async function analyzeBuffer(audioBuffer, onProgress){
     const entry=gridMap.get(gi);
     if(entry){
       entry.weight+=o.weight;
-      entry.rhythmRatioSum+=o.rhythmRatio;
       entry.flatnessSum+=o.flatness;
-      entry.lowPeakFreqSum+=o.lowPeakFreq;
-      entry.melodyPeakFreqSum+=o.melodyPeakFreq;
+      entry.dominantFreqSum+=o.dominantFreq;
+      entry.holdDuration=Math.max(entry.holdDuration, o.holdDuration);
       entry.count++;
     } else {
       gridMap.set(gi, {
         time:gridTime, weight:o.weight,
-        rhythmRatioSum:o.rhythmRatio, flatnessSum:o.flatness,
-        lowPeakFreqSum:o.lowPeakFreq, melodyPeakFreqSum:o.melodyPeakFreq,
+        flatnessSum:o.flatness, dominantFreqSum:o.dominantFreq,
+        holdDuration:o.holdDuration,
         count:1,
       });
     }
@@ -503,10 +517,9 @@ async function analyzeBuffer(audioBuffer, onProgress){
   const onsets=Array.from(gridMap.values())
     .map(e=>({
       time:e.time, weight:e.weight,
-      rhythmRatio:e.rhythmRatioSum/e.count,
       flatness:e.flatnessSum/e.count,
-      lowPeakFreq:e.lowPeakFreqSum/e.count,
-      melodyPeakFreq:e.melodyPeakFreqSum/e.count,
+      dominantFreq:e.dominantFreqSum/e.count,
+      holdDuration:e.holdDuration,
     }))
     .sort((a,b)=>a.time-b.time);
 
@@ -515,32 +528,28 @@ async function analyzeBuffer(audioBuffer, onProgress){
     const idx=Math.min(sorted.length-1,Math.floor(p*(sorted.length-1)));
     return sorted[idx];
   }
-  // Left lanes (0..2) = rhythm section (kick/snare/bass-driven onsets),
-  // right lanes (3..5) = melody section (vocal/guitar-driven onsets), with
-  // pitch height pushing melody notes further right.
-  // Classifying purely by low-frequency energy doesn't hold up on a mixed-down
-  // band recording: a snare or hi-hat is clearly "rhythm" but isn't bassy, so
-  // it was being misclassified as melody. Real audio engineering separates
-  // drums from melodic instruments mainly by percussiveness (a drum hit is
-  // broadband/noisy across the spectrum; a sung or plucked note concentrates
-  // energy at a few harmonic partials) rather than by pitch alone, so a
-  // spectral-flatness "how noisy/broadband is this onset" signal is blended
-  // in alongside the low-frequency ratio: bassy OR noisy -> rhythm section.
-  const RHYTHM_LANES=3;
-  const rhythmScoreOf=o=>Math.max(o.rhythmRatio, o.flatness);
-  const rhythmScores=onsets.map(rhythmScoreOf).sort((a,b)=>a-b);
-  const rhythmSplit=tileOf(rhythmScores,0.5);
-  const rhythmOnsets=onsets.filter(o=>rhythmScoreOf(o)>=rhythmSplit);
-  const melodyOnsets=onsets.filter(o=>rhythmScoreOf(o)<rhythmSplit);
-  // The low band only spans ~4-5 FFT bins below 200Hz, too coarse to split
-  // into 3 lanes by peak frequency (most onsets tie on the same bin) - a
-  // round-robin over time gives an even, natural-feeling alternation instead
-  // (both arrays are already time-sorted since they're filtered from `onsets`).
-  rhythmOnsets.forEach((o,idx)=>{ o.lane=idx%RHYTHM_LANES; });
-  const melodyFreqs=melodyOnsets.map(o=>o.melodyPeakFreq).sort((a,b)=>a-b);
-  const melodyBounds=[tileOf(melodyFreqs,1/RHYTHM_LANES), tileOf(melodyFreqs,2/RHYTHM_LANES)];
-  for(const o of melodyOnsets){
-    o.lane = o.melodyPeakFreq<=melodyBounds[0] ? 3 : o.melodyPeakFreq<=melodyBounds[1] ? 4 : 5;
+  // Lanes 0-2 = drum kit (kick/snare/cymbal), lanes 3-5 = pitched instruments
+  // (bass/vocal/guitar), each ordered low->high dominant frequency. The
+  // drum-vs-pitched split is spectral flatness (percussiveness) alone: a
+  // drum hit is broadband/noisy regardless of pitch, while a sung or played
+  // note concentrates energy at a few harmonic partials - so a snare or
+  // cymbal correctly lands with the drums even though it isn't bassy, and a
+  // low bass note correctly lands with the pitched instruments even though
+  // it isn't percussive.
+  const LANES_PER_GROUP=3;
+  const flatnessValues=onsets.map(o=>o.flatness).sort((a,b)=>a-b);
+  const drumSplit=tileOf(flatnessValues,0.5);
+  const drumOnsets=onsets.filter(o=>o.flatness>=drumSplit);
+  const pitchedOnsets=onsets.filter(o=>o.flatness<drumSplit);
+  const drumFreqs=drumOnsets.map(o=>o.dominantFreq).sort((a,b)=>a-b);
+  const drumBounds=[tileOf(drumFreqs,1/LANES_PER_GROUP), tileOf(drumFreqs,2/LANES_PER_GROUP)];
+  for(const o of drumOnsets){
+    o.lane = o.dominantFreq<=drumBounds[0] ? 0 : o.dominantFreq<=drumBounds[1] ? 1 : 2;
+  }
+  const pitchedFreqs=pitchedOnsets.map(o=>o.dominantFreq).sort((a,b)=>a-b);
+  const pitchedBounds=[tileOf(pitchedFreqs,1/LANES_PER_GROUP), tileOf(pitchedFreqs,2/LANES_PER_GROUP)];
+  for(const o of pitchedOnsets){
+    o.lane = o.dominantFreq<=pitchedBounds[0] ? 3 : o.dominantFreq<=pitchedBounds[1] ? 4 : 5;
   }
 
   const weights=onsets.map(o=>o.weight).slice().sort((a,b)=>a-b);
@@ -570,7 +579,7 @@ function buildChartNotes(onsets, difficulty){
   let last=-Infinity;
   for(const o of onsets){
     if(o.weight>=threshold && (o.time-last)>=params.minGap){
-      notes.push({time:o.time, lane:o.lane, judged:false, result:null, critical:!!o.critical});
+      notes.push({time:o.time, lane:o.lane, judged:false, result:null, critical:!!o.critical, holdDuration:o.holdDuration||0});
       last=o.time;
     }
   }
@@ -673,6 +682,7 @@ function buildExportDifficulties(song){
       time:Math.round(n.time*1000)/1000,
       lane:n.lane,
       critical:!!n.critical,
+      holdDuration:Math.round((n.holdDuration||0)*1000)/1000,
     }));
   }
   return diffs;
@@ -695,20 +705,20 @@ function exportChartJSON(song){
     song:song.name,
     duration:Math.round(song.duration*1000)/1000,
     laneCount:LANE_COUNT,
-    laneLayout:{rhythm:[0,1,2],melody:[3,4,5]},
+    laneLayout:{0:'kick',1:'snare',2:'cymbal',3:'bass',4:'vocal',5:'guitar'},
     generatedAt:new Date().toISOString(),
     difficulties:buildExportDifficulties(song),
   };
   const blob=new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   downloadBlob(blob, sanitizeFilename(song.name)+'_chart.json');
 }
+const LANE_INSTRUMENTS=['kick','snare','cymbal','bass','vocal','guitar'];
 function exportChartCSV(song){
   const diffs=buildExportDifficulties(song);
-  const rows=['difficulty,time_sec,lane,section,critical'];
+  const rows=['difficulty,time_sec,lane,instrument,critical,hold_sec'];
   for(const key of ['easy','normal','hard']){
     for(const n of diffs[key]){
-      const section=n.lane<=2?'rhythm':'melody';
-      rows.push(key+','+n.time+','+n.lane+','+section+','+(n.critical?1:0));
+      rows.push(key+','+n.time+','+n.lane+','+LANE_INSTRUMENTS[n.lane]+','+(n.critical?1:0)+','+n.holdDuration);
     }
   }
   const blob=new Blob([rows.join('\n')], {type:'text/csv'});
@@ -948,6 +958,8 @@ async function startPlay(song, difficulty){
     counts:{perfect:0, great:0, good:0, bad:0, miss:0},
     life:80,
     lanePtr:new Array(LANE_COUNT).fill(0),
+    heldKeys:new Array(LANE_COUNT).fill(false),
+    activeHolds:new Array(LANE_COUNT).fill(null),
     drawIdx:0,
     judgePopup:{text:'', t:-999},
     paused:false,
@@ -973,6 +985,7 @@ function songTimeNow(){
 
 function judgeLane(lane){
   if(!game || game.paused || game.ended) return;
+  game.heldKeys[lane]=true;
   const t=songTimeNow();
   const list=game.chart.notesByLane[lane];
   let ptr=game.lanePtr[lane];
@@ -988,10 +1001,22 @@ function judgeLane(lane){
         : 'bad';
       note.result=result;
       applyJudge(result, lane, note.critical);
+      if(note.holdDuration>0) game.activeHolds[lane]=note;
       ptr++;
     }
   }
   game.lanePtr[lane]=ptr;
+}
+
+// Called on key/touch release: if a hold note's key was let go before its
+// tail time, it's a broken hold (the head hit already scored, so no further
+// penalty - it just stops rendering/tracking as "being held").
+function releaseLane(lane){
+  if(!game) return;
+  game.heldKeys[lane]=false;
+  const note=game.activeHolds[lane];
+  if(note && !note.holdCompleted) note.holdBroken=true;
+  game.activeHolds[lane]=null;
 }
 
 function spawnHitParticles(lane, color, count){
@@ -1072,6 +1097,17 @@ function showJudge(text,color){
   game.judgePopup.t=performance.now();
   clearTimeout(showJudge._t);
   showJudge._t=setTimeout(()=>{ el.style.opacity='0'; }, 260);
+}
+
+// A hold note held continuously through its full duration earns a small
+// bonus on top of whatever the initial head press already scored.
+function completeHold(note){
+  note.holdCompleted=true;
+  game.activeHolds[note.lane]=null;
+  const bonus=Math.round((80+Math.min(game.combo,50)*0.5)*(note.critical?1.5:1));
+  game.score+=bonus;
+  document.getElementById('scoreDisplay').textContent=String(game.score);
+  spawnHitParticles(note.lane, note.critical?'#ffe98a':LANE_COLORS[note.lane], note.critical?10:6);
 }
 
 /* ---------- Canvas ---------- */
@@ -1184,7 +1220,12 @@ function draw(){
 
   const notes=game.chart.notes;
   let i=game.drawIdx;
-  while(i<notes.length && notes[i].judged && (notes[i].time - t) < -0.3) i++;
+  // Don't advance past a note that's still an active hold - its head can be
+  // long past the 0.3s fade window while the tail (up to a few seconds
+  // later) hasn't resolved yet, and it still needs to be visited each frame
+  // to detect completion and keep rendering its remaining body.
+  while(i<notes.length && notes[i].judged && (notes[i].time - t) < -0.3
+        && !(notes[i].holdDuration>0 && game.activeHolds[notes[i].lane]===notes[i])) i++;
   game.drawIdx=i;
 
   for(; i<notes.length; i++){
@@ -1195,35 +1236,66 @@ function draw(){
       n.judged=true; n.result='miss';
       applyJudge('miss', n.lane, n.critical);
     }
-    if(n.judged && n.result!=='miss') continue;
-    if(n.judged && until < -0.3) continue;
 
-    const p=1-Math.max(0,Math.min(1, until/LEAD_TIME));
-    const persp=perspectiveAt(p, W, H);
-    const laneWidthAtP=persp.halfWidth*2/LANE_COUNT;
-    const x=laneCenterX(n.lane, persp.halfWidth, W);
-    const y=persp.y;
-    const noteW=laneWidthAtP*0.78;
-    const noteH=Math.max(8, H*(n.critical?0.038:0.032)*persp.scale);
-    if(y < horizonY-20 || y > hitLineY+40) continue;
+    let isHoldActive = n.holdDuration>0 && game.activeHolds[n.lane]===n;
+    if(isHoldActive){
+      const tailUntil=(n.time+n.holdDuration)-t;
+      if(tailUntil<=0){ completeHold(n); isHoldActive=false; }
+    }
+    if(n.judged && n.result==='miss'){
+      if(until < -0.3) continue;
+    } else if(n.judged && !isHoldActive){
+      continue;
+    }
+
+    // Once judged, a hold's head is "consumed" and pinned at the hit line;
+    // only the still-outstanding tail keeps approaching from the distance.
+    const headUntil = n.judged ? 0 : until;
+    const tailUntil = n.holdDuration>0 ? (n.time+n.holdDuration-t) : headUntil;
+    const pHead=1-Math.max(0,Math.min(1, headUntil/LEAD_TIME));
+    const perspHead=perspectiveAt(pHead, W, H);
+    const laneWidthHead=perspHead.halfWidth*2/LANE_COUNT;
+    const xHead=laneCenterX(n.lane, perspHead.halfWidth, W);
+    const yHead=perspHead.y;
+    const noteW=laneWidthHead*0.78;
+    const noteH=Math.max(8, H*(n.critical?0.038:0.032)*perspHead.scale);
+    if(yHead < horizonY-20 || yHead > hitLineY+40) continue;
 
     const baseColor= n.critical ? '#ffd23f' : LANE_COLORS[n.lane];
 
-    if(!n.judged){
-      const glowR=noteW*(n.critical?1.5:1.1);
-      const noteGlow=ctx2d.createRadialGradient(x,y,0,x,y,glowR);
-      noteGlow.addColorStop(0, hexToRgba(baseColor, (n.critical?0.65:0.45)*persp.scale));
-      noteGlow.addColorStop(1, hexToRgba(baseColor, 0));
-      ctx2d.fillStyle=noteGlow;
+    if(n.holdDuration>0){
+      const pTail=1-Math.max(0,Math.min(1, tailUntil/LEAD_TIME));
+      const perspTail=perspectiveAt(pTail, W, H);
+      const laneWidthTail=perspTail.halfWidth*2/LANE_COUNT;
+      const xTail=laneCenterX(n.lane, perspTail.halfWidth, W);
+      const bodyWHead=noteW*0.6, bodyWTail=laneWidthTail*0.78*0.6;
       ctx2d.beginPath();
-      ctx2d.arc(x,y,glowR,0,Math.PI*2);
+      ctx2d.moveTo(xTail-bodyWTail/2, perspTail.y);
+      ctx2d.lineTo(xTail+bodyWTail/2, perspTail.y);
+      ctx2d.lineTo(xHead+bodyWHead/2, yHead);
+      ctx2d.lineTo(xHead-bodyWHead/2, yHead);
+      ctx2d.closePath();
+      ctx2d.fillStyle=hexToRgba(isHoldActive?'#ffffff':baseColor, isHoldActive?0.5:0.26);
       ctx2d.fill();
     }
 
-    if(n.judged){
+    if(!n.judged){
+      const glowR=noteW*(n.critical?1.5:1.1);
+      const noteGlow=ctx2d.createRadialGradient(xHead,yHead,0,xHead,yHead,glowR);
+      noteGlow.addColorStop(0, hexToRgba(baseColor, (n.critical?0.65:0.45)*perspHead.scale));
+      noteGlow.addColorStop(1, hexToRgba(baseColor, 0));
+      ctx2d.fillStyle=noteGlow;
+      ctx2d.beginPath();
+      ctx2d.arc(xHead,yHead,glowR,0,Math.PI*2);
+      ctx2d.fill();
+    }
+
+    if(n.judged && n.result==='miss'){
       ctx2d.fillStyle='rgba(255,85,102,.5)';
+    } else if(isHoldActive){
+      ctx2d.fillStyle='#ffffff';
     } else if(n.critical){
-      const critGrad=ctx2d.createLinearGradient(x-noteW/2,y,x+noteW/2,y);
+      const critGrad=ctx2d.createLinearGradient(xHead-noteW/2,yHead,xHead+noteW/2,yHead);
       critGrad.addColorStop(0,'#ffd23f');
       critGrad.addColorStop(0.5,'#fff6cc');
       critGrad.addColorStop(1,'#ffd23f');
@@ -1232,13 +1304,13 @@ function draw(){
       ctx2d.fillStyle=LANE_COLORS[n.lane];
     }
     ctx2d.shadowColor=baseColor;
-    ctx2d.shadowBlur= n.judged? 0 : (n.critical?18:10)*persp.scale;
+    ctx2d.shadowBlur= (n.judged && !isHoldActive)? 0 : (n.critical?18:10)*perspHead.scale;
     ctx2d.beginPath();
-    ctx2d.roundRect(x-noteW/2, y-noteH/2, noteW, noteH, Math.max(3,8*persp.scale));
+    ctx2d.roundRect(xHead-noteW/2, yHead-noteH/2, noteW, noteH, Math.max(3,8*perspHead.scale));
     ctx2d.fill();
     if(n.critical && !n.judged){
       ctx2d.strokeStyle='rgba(255,255,255,.85)';
-      ctx2d.lineWidth=Math.max(1,1.5*persp.scale);
+      ctx2d.lineWidth=Math.max(1,1.5*perspHead.scale);
       ctx2d.stroke();
     }
     ctx2d.shadowBlur=0;
@@ -1293,11 +1365,15 @@ function draw(){
 document.querySelectorAll('.tzone').forEach(zone=>{
   const lane=Number(zone.dataset.lane);
   const press=e=>{ e.preventDefault(); zone.classList.add('active'); judgeLane(lane); };
-  const release=()=>zone.classList.remove('active');
+  const release=e=>{ if(e) e.preventDefault(); zone.classList.remove('active'); releaseLane(lane); };
   zone.addEventListener('pointerdown', press);
   zone.addEventListener('pointerup', release);
   zone.addEventListener('pointercancel', release);
   zone.addEventListener('pointerleave', release);
+  // Suppress mobile long-press gestures (text-selection loupe, native
+  // "copy/share" callout, context menu) so holding a note down doesn't
+  // trigger the OS instead of the game.
+  zone.addEventListener('contextmenu', e=>e.preventDefault());
 });
 
 window.addEventListener('keydown', e=>{
@@ -1316,6 +1392,7 @@ window.addEventListener('keydown', e=>{
 window.addEventListener('keyup', e=>{
   const idx=LANE_KEYS.indexOf(e.key.toLowerCase());
   if(idx>=0){
+    releaseLane(idx);
     const zone=document.querySelector('.tzone[data-lane="'+idx+'"]');
     if(zone) zone.classList.remove('active');
   }
