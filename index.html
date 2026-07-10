@@ -365,11 +365,22 @@ async function analyzeBuffer(audioBuffer, onProgress){
   const half=FFT_SIZE/2;
   const prevMag=new Float32Array(half);
   const flux=new Float32Array(numFrames);
-  const centroid=new Float32Array(numFrames);
   const reBuf=new Float32Array(FFT_SIZE);
   const imBuf=new Float32Array(FFT_SIZE);
   const binFreq=new Float32Array(half);
   for(let k=0;k<half;k++) binFreq[k]=k*sr/FFT_SIZE;
+
+  // Rhythm/melody band split, mirroring a "left = drums/bass, right = lead
+  // melody" lane layout: low frequencies (kick/bass) drive the rhythm side,
+  // mid/high frequencies (vocal/guitar) drive the melody side, and the
+  // dominant frequency within each band acts as a rough pitch proxy for
+  // choosing the sub-lane (higher pitch -> further right).
+  const LOW_BAND_MAX_HZ=200;
+  const MELODY_MIN_HZ=200, MELODY_MAX_HZ=5000;
+  const totalEnergyArr=new Float32Array(numFrames);
+  const lowEnergyArr=new Float32Array(numFrames);
+  const lowPeakFreqArr=new Float32Array(numFrames);
+  const melodyPeakFreqArr=new Float32Array(numFrames);
 
   // Heaviest step (an FFT per frame): processed in chunks and yielded back to
   // the browser between them so long recordings don't freeze the tab and the
@@ -379,18 +390,28 @@ async function analyzeBuffer(audioBuffer, onProgress){
     const start=f*HOP;
     for(let i=0;i<FFT_SIZE;i++){ reBuf[i]=mono[start+i]*win[i]; imBuf[i]=0; }
     fftInPlace(reBuf, imBuf);
-    let fluxSum=0, energySum=0, weighted=0;
+    let fluxSum=0, energySum=0, lowEnergy=0;
+    let lowPeakMag=0, lowPeakFreq=0, melodyPeakMag=0, melodyPeakFreq=0;
     for(let k=0;k<half;k++){
       const mag=Math.sqrt(reBuf[k]*reBuf[k]+imBuf[k]*imBuf[k]);
       const logMag=Math.log1p(mag);
       const diff=logMag-prevMag[k];
       if(diff>0) fluxSum+=diff;
       energySum+=mag;
-      weighted+=mag*binFreq[k];
       prevMag[k]=logMag;
+      const f_hz=binFreq[k];
+      if(f_hz<LOW_BAND_MAX_HZ){
+        lowEnergy+=mag;
+        if(mag>lowPeakMag){ lowPeakMag=mag; lowPeakFreq=f_hz; }
+      } else if(f_hz>=MELODY_MIN_HZ && f_hz<=MELODY_MAX_HZ){
+        if(mag>melodyPeakMag){ melodyPeakMag=mag; melodyPeakFreq=f_hz; }
+      }
     }
     flux[f]=fluxSum;
-    centroid[f]= energySum>1e-6 ? weighted/energySum : 0;
+    totalEnergyArr[f]=energySum;
+    lowEnergyArr[f]=lowEnergy;
+    lowPeakFreqArr[f]=lowPeakFreq;
+    melodyPeakFreqArr[f]=melodyPeakFreq;
 
     if(f>0 && f%CHUNK===0){
       if(onProgress) onProgress(f/numFrames*0.95);
@@ -415,7 +436,14 @@ async function analyzeBuffer(audioBuffer, onProgress){
     const localMean=sum/(hi-lo+1);
     const threshold=localMean*1.4+0.02;
     if(flux[f]>threshold){
-      onsetsRaw.push({ time:f*hopSec, weight:flux[f]-localMean, brightness:centroid[f] });
+      const rhythmRatio = totalEnergyArr[f]>1e-6 ? lowEnergyArr[f]/totalEnergyArr[f] : 0;
+      onsetsRaw.push({
+        time:f*hopSec,
+        weight:flux[f]-localMean,
+        rhythmRatio,
+        lowPeakFreq:lowPeakFreqArr[f],
+        melodyPeakFreq:melodyPeakFreqArr[f],
+      });
     }
   }
 
@@ -431,29 +459,62 @@ async function analyzeBuffer(audioBuffer, onProgress){
     const gridTime=phase+gi*step;
     if(Math.abs(o.time-gridTime) > step*0.55) continue;
     const entry=gridMap.get(gi);
-    if(entry){ entry.weight+=o.weight; entry.brightnessSum+=o.brightness; entry.count++; }
-    else gridMap.set(gi, {time:gridTime, weight:o.weight, brightnessSum:o.brightness, count:1});
+    if(entry){
+      entry.weight+=o.weight;
+      entry.rhythmRatioSum+=o.rhythmRatio;
+      entry.lowPeakFreqSum+=o.lowPeakFreq;
+      entry.melodyPeakFreqSum+=o.melodyPeakFreq;
+      entry.count++;
+    } else {
+      gridMap.set(gi, {
+        time:gridTime, weight:o.weight,
+        rhythmRatioSum:o.rhythmRatio, lowPeakFreqSum:o.lowPeakFreq, melodyPeakFreqSum:o.melodyPeakFreq,
+        count:1,
+      });
+    }
   }
   const onsets=Array.from(gridMap.values())
-    .map(e=>({time:e.time, weight:e.weight, brightness:e.brightnessSum/e.count}))
+    .map(e=>({
+      time:e.time, weight:e.weight,
+      rhythmRatio:e.rhythmRatioSum/e.count,
+      lowPeakFreq:e.lowPeakFreqSum/e.count,
+      melodyPeakFreq:e.melodyPeakFreqSum/e.count,
+    }))
     .sort((a,b)=>a.time-b.time);
 
-  const brights=onsets.map(o=>o.brightness).slice().sort((a,b)=>a-b);
-  const weights=onsets.map(o=>o.weight).slice().sort((a,b)=>a-b);
   function tileOf(sorted,p){
     if(sorted.length===0) return 0;
     const idx=Math.min(sorted.length-1,Math.floor(p*(sorted.length-1)));
     return sorted[idx];
   }
-  const laneBounds=[];
-  for(let i=1;i<LANE_COUNT;i++) laneBounds.push(tileOf(brights, i/LANE_COUNT));
-  const criticalThreshold=tileOf(weights, CRITICAL_PERCENTILE);
-  for(const o of onsets){
-    let lane=0;
-    while(lane<laneBounds.length && o.brightness>laneBounds[lane]) lane++;
-    o.lane=Math.min(lane, LANE_COUNT-1);
-    o.critical = o.weight>=criticalThreshold;
+  // Left lanes (0..2) = rhythm section (kick/bass-driven onsets), right lanes
+  // (3..5) = melody section (vocal/guitar-driven onsets), with pitch height
+  // pushing melody notes further right - same layout as the reference spec.
+  // The rhythm/melody split point is this song's own median low-band energy
+  // ratio (not a fixed constant): live-band recordings vary hugely in overall
+  // spectral balance, so a fixed absolute threshold left the rhythm lanes
+  // almost empty on some tracks. Splitting at the per-song median keeps both
+  // sides populated regardless of a given recording's overall tonal balance.
+  const RHYTHM_LANES=3;
+  const rhythmRatios=onsets.map(o=>o.rhythmRatio).sort((a,b)=>a-b);
+  const rhythmSplit=tileOf(rhythmRatios,0.5);
+  const rhythmOnsets=onsets.filter(o=>o.rhythmRatio>=rhythmSplit);
+  const melodyOnsets=onsets.filter(o=>o.rhythmRatio<rhythmSplit);
+  // The low band only spans ~4-5 FFT bins below 200Hz, too coarse to split
+  // into 3 lanes by peak frequency (most onsets tie on the same bin) - a
+  // round-robin over time gives an even, natural-feeling alternation instead
+  // (both arrays are already time-sorted since they're filtered from `onsets`).
+  rhythmOnsets.forEach((o,idx)=>{ o.lane=idx%RHYTHM_LANES; });
+  const melodyFreqs=melodyOnsets.map(o=>o.melodyPeakFreq).sort((a,b)=>a-b);
+  const melodyBounds=[tileOf(melodyFreqs,1/RHYTHM_LANES), tileOf(melodyFreqs,2/RHYTHM_LANES)];
+  for(const o of melodyOnsets){
+    o.lane = o.melodyPeakFreq<=melodyBounds[0] ? 3 : o.melodyPeakFreq<=melodyBounds[1] ? 4 : 5;
   }
+
+  const weights=onsets.map(o=>o.weight).slice().sort((a,b)=>a-b);
+  const criticalThreshold=tileOf(weights, CRITICAL_PERCENTILE);
+  for(const o of onsets) o.critical = o.weight>=criticalThreshold;
+
   if(onProgress) onProgress(1);
   return onsets;
 }
