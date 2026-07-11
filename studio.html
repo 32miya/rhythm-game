@@ -164,6 +164,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 <script src="songs-data-b.js"></script>
 <script src="songs-data-c.js"></script>
 <script src="songs-data-d.js"></script>
+<script src="songs-data-e.js"></script>
 <script>
 'use strict';
 
@@ -627,6 +628,7 @@ function buildEmbeddedSongsList(){
   if(typeof EMBEDDED_SONGS_B!=='undefined') parts.push(...EMBEDDED_SONGS_B);
   if(typeof EMBEDDED_SONGS_C!=='undefined') parts.push(...EMBEDDED_SONGS_C);
   if(typeof EMBEDDED_SONGS_D!=='undefined') parts.push(...EMBEDDED_SONGS_D);
+  if(typeof EMBEDDED_SONGS_E!=='undefined') parts.push(...EMBEDDED_SONGS_E);
   return parts.map((e,idx)=>({
     id:'builtin-'+idx,
     name:e.name,
