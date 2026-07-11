@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -18,7 +18,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 .screen.active{display:flex;}
 
 /* ---------- Title / song select ---------- */
-#screen-title{overflow-y:auto;padding:24px 18px 40px;}
+#screen-title{overflow-y:auto;padding:24px 18px 40px;touch-action:pan-y;}
 #screen-title h1{font-size:26px;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#3fd6ff,#7c4dff);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:1px;}
 #screen-title .subtitle{color:#9aa0c0;font-size:13px;margin-top:6px;margin-bottom:20px;}
 #dropzone{border:2px dashed #3a3a5a;border-radius:14px;padding:20px;text-align:center;transition:border-color .15s,background .15s;}
@@ -53,7 +53,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 .export-btn:active{background:rgba(255,255,255,.06);}
 
 /* ---------- Play screen ---------- */
-#screen-play{background:#05050c;}
+#screen-play{background:#05050c;touch-action:none;}
 #gameCanvas{width:100%;height:100%;display:block;touch-action:none;}
 #hud{position:absolute;top:8px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px 14px;pointer-events:none;}
 #scoreDisplay{font-size:22px;font-weight:800;letter-spacing:1px;text-shadow:0 0 8px rgba(124,77,255,.6);}
@@ -80,14 +80,14 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 .tzone:first-child{border-left:none;}
 .tzone .keycap{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#0a0a14;opacity:.9;pointer-events:none;}
 .tzone.active{background:rgba(255,255,255,.06);}
-#pauseOverlay{position:absolute;inset:0;background:rgba(5,5,12,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:10;}
+#pauseOverlay{position:absolute;inset:0;background:rgba(5,5,12,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:10;touch-action:manipulation;}
 #pauseOverlay.hidden{display:none;}
 #pauseOverlay button{padding:12px 34px;border-radius:999px;border:none;font-size:15px;font-weight:700;cursor:pointer;}
 #resumeBtn{background:#3fd6ff;color:#0a0a14;}
 #quitBtn{background:#23234a;color:#eef0ff;}
 
 /* ---------- Result screen ---------- */
-#screen-result{align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;}
+#screen-result{align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;touch-action:manipulation;}
 #screen-result h2{font-size:20px;color:#9aa0c0;letter-spacing:3px;}
 #rankBig{font-size:64px;font-weight:900;text-shadow:0 0 20px rgba(124,77,255,.6);}
 #resultBody{background:#141428;border:1px solid #23234a;border-radius:16px;padding:20px 28px;min-width:240px;max-width:88vw;}
@@ -1430,6 +1430,21 @@ function draw(){
 }
 
 /* ---------- Input ---------- */
+// iOS Safari's pinch-to-zoom (and double-tap-zoom) can still fire from rapid
+// taps even with touch-action:none and user-scalable=no on some versions -
+// these are WebKit's own non-standard pinch gesture events, and blocking
+// them directly is the last line of defense against the game view zooming
+// out mid-play.
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('gesturechange', e=>e.preventDefault());
+document.addEventListener('gestureend', e=>e.preventDefault());
+let lastTouchEndTime=0;
+document.addEventListener('touchend', e=>{
+  const now=Date.now();
+  if(now-lastTouchEndTime<=350) e.preventDefault();
+  lastTouchEndTime=now;
+}, {passive:false});
+
 document.querySelectorAll('.tzone').forEach(zone=>{
   const lane=Number(zone.dataset.lane);
   const press=e=>{ e.preventDefault(); zone.classList.add('active'); judgeLane(lane); };
