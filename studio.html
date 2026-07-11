@@ -32,6 +32,12 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 .volume-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:linear-gradient(90deg,#7c4dff,#3fd6ff);cursor:pointer;border:2px solid #eef0ff;}
 .volume-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:linear-gradient(90deg,#7c4dff,#3fd6ff);cursor:pointer;border:2px solid #eef0ff;}
 #pauseOverlay .volume-row{width:70%;max-width:280px;margin-bottom:4px;}
+.mode-row{display:flex;gap:10px;margin-bottom:8px;}
+.mode-btn{flex:1;border:2px solid #23234a;background:#141428;color:#9aa0c0;border-radius:12px;padding:12px 6px;font-size:14px;font-weight:700;cursor:pointer;transition:border-color .15s,color .15s,background .15s;}
+.mode-btn.active{color:#0a0a14;border-color:transparent;}
+.mode-btn.active[data-mode="practice"]{background:linear-gradient(90deg,#5ce18a,#3fd6ff);}
+.mode-btn.active[data-mode="attack"]{background:linear-gradient(90deg,#ff4d6d,#ff9f4d);}
+.mode-hint{font-size:12px;color:#7a80a5;margin-bottom:18px;min-height:1.4em;}
 #dropzone .hint{margin-top:10px;font-size:12px;color:#7a80a5;}
 #addProgress{margin-top:12px;font-size:13px;color:#3fd6ff;min-height:18px;}
 #songList{margin-top:22px;display:flex;flex-direction:column;gap:12px;}
@@ -89,6 +95,8 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 /* ---------- Result screen ---------- */
 #screen-result{align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;touch-action:manipulation;}
 #screen-result h2{font-size:20px;color:#9aa0c0;letter-spacing:3px;}
+#gameOverBadge{font-size:16px;font-weight:800;color:#ff5566;letter-spacing:2px;}
+#gameOverBadge.hidden{display:none;}
 #rankBig{font-size:64px;font-weight:900;text-shadow:0 0 20px rgba(124,77,255,.6);}
 #resultBody{background:#141428;border:1px solid #23234a;border-radius:16px;padding:20px 28px;min-width:240px;max-width:88vw;}
 #resultBody .row{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;color:#c6caee;}
@@ -119,6 +127,11 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
       <p class="hint">またはここに音声ファイルをドラッグ＆ドロップ（一度追加した曲は次回も使えます）</p>
       <div id="addProgress"></div>
     </div>
+    <div id="modeRow" class="mode-row">
+      <button class="mode-btn" data-mode="practice">🎵 練習モード</button>
+      <button class="mode-btn" data-mode="attack">⚔️ アタックモード</button>
+    </div>
+    <p id="modeHint" class="mode-hint"></p>
     <div id="songList"></div>
   </div>
 
@@ -160,6 +173,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 
   <div id="screen-result" class="screen">
     <h2>RESULT</h2>
+    <div id="gameOverBadge" class="hidden">⚠️ GAME OVER</div>
     <div id="rankBig">-</div>
     <div id="resultBody"></div>
     <div class="result-btns">
@@ -273,6 +287,23 @@ function getHighScore(){
 }
 function saveHighScore(score, songName, diffLabel){
   localStorage.setItem(HIGH_SCORE_KEY, JSON.stringify({score, songName, diffLabel}));
+}
+
+/* ---------- Game mode: practice (no score/result, life never ends the
+   song early) vs attack (score/result + life hitting 0 ends the song). ---------- */
+const MODE_KEY='rhythmGameMode';
+const MODE_HINTS={
+  practice:'体力ゲージが0になっても最後まで通してプレイできます（スコア・リザルトなし）',
+  attack:'体力ゲージが0になると曲の途中でもゲームオーバー。スコア・リザルトあり',
+};
+let currentMode=(localStorage.getItem(MODE_KEY)==='attack') ? 'attack' : 'practice';
+function setMode(mode){
+  currentMode=(mode==='attack') ? 'attack' : 'practice';
+  localStorage.setItem(MODE_KEY, currentMode);
+  document.querySelectorAll('.mode-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.mode===currentMode);
+  });
+  document.getElementById('modeHint').textContent=MODE_HINTS[currentMode];
 }
 
 // Holds at most one decoded AudioBuffer at a time. With 15 built-in tracks
@@ -1015,6 +1046,7 @@ async function startPlay(song, difficulty){
 
   game={
     song, difficulty, chart, source, startTime,
+    mode:currentMode,
     analyser, freqData,
     particles:[],
     lastFrameMs:performance.now(),
@@ -1035,7 +1067,8 @@ async function startPlay(song, difficulty){
 
   source.start(startTime);
 
-  document.getElementById('songNameHud').textContent=song.name+' / '+DIFF_PARAMS[difficulty].label;
+  document.getElementById('songNameHud').textContent=song.name+' / '+DIFF_PARAMS[difficulty].label+' / '+(currentMode==='attack'?'アタック':'練習');
+  document.getElementById('scoreDisplay').style.display=(currentMode==='attack') ? '' : 'none';
   document.getElementById('scoreDisplay').textContent='0';
   document.getElementById('comboDisplay').style.display='none';
   document.getElementById('lifeGaugeFill').style.width='80%';
@@ -1155,6 +1188,18 @@ function applyJudge(result, lane, critical){
   } else {
     comboEl.style.display='none';
   }
+
+  if(game.mode==='attack' && game.life<=0){
+    triggerGameOver();
+  }
+}
+
+// Attack mode only: life hitting 0 ends the song immediately, mid-play.
+function triggerGameOver(){
+  if(!game || game.ended) return;
+  game.setManualStop();
+  try{ game.source.stop(); }catch(err){}
+  endPlay(true);
 }
 
 function showJudge(text,color){
@@ -1512,9 +1557,15 @@ document.getElementById('quitBtn').addEventListener('click', ()=>{
   showScreen('title');
 });
 
-function endPlay(){
+function endPlay(isGameOver){
   if(!game || game.ended) return;
   game.ended=true;
+
+  if(game.mode==='practice'){
+    // Practice mode has no score/result tracking at all - just back to song select.
+    showScreen('title');
+    return;
+  }
 
   // If this page is embedded (e.g. via <iframe> on a hosting/ranking site),
   // report the final score to the parent page via postMessage so it can be
@@ -1532,6 +1583,8 @@ function endPlay(){
   else if(acc>=85) rank='A';
   else if(acc>=70) rank='B';
   else if(acc>=50) rank='C';
+
+  document.getElementById('gameOverBadge').classList.toggle('hidden', !isGameOver);
 
   const rankColors={S:'#ffd23f',A:'#5ce18a',B:'#3fd6ff',C:'#ff9f4d',D:'#ff5566'};
   const rankEl=document.getElementById('rankBig');
@@ -1568,6 +1621,10 @@ for(const el of [document.getElementById('volumeSliderTitle'), document.getEleme
   el.addEventListener('input', e=>setVolumeLevel(Number(e.target.value)));
 }
 setVolumeLevel(getVolumeLevel());
+document.querySelectorAll('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>setMode(btn.dataset.mode));
+});
+setMode(currentMode);
 initSongs();
 </script>
 </body>
