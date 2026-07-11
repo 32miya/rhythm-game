@@ -60,7 +60,7 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #lifeGaugeFill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#5ce18a,#3fd6ff,#7c4dff);transition:width .25s ease-out;}
 #comboBonusOverlay{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;opacity:0;transition:opacity .3s ease;text-align:center;width:min(86vw,420px);}
 #comboBonusOverlay.show{opacity:1;}
-#comboBonusImg{width:100%;border-radius:14px;display:block;box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.15);}
+#comboBonusImg{width:100%;border-radius:14px;display:block;opacity:.42;box-shadow:0 8px 40px rgba(0,0,0,.35),0 0 0 2px rgba(255,255,255,.1);}
 #comboBonusText{margin-top:10px;font-size:20px;font-weight:900;color:#ffd23f;text-shadow:0 0 12px rgba(255,210,63,.8);letter-spacing:1px;}
 @keyframes comboBonusPop{0%{transform:translate(-50%,-50%) scale(.85);}60%{transform:translate(-50%,-50%) scale(1.04);}100%{transform:translate(-50%,-50%) scale(1);}}
 #comboBonusOverlay.pop{animation:comboBonusPop 320ms cubic-bezier(.2,1.4,.4,1);}
