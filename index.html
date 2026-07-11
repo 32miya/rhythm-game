@@ -58,6 +58,12 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #pauseBtn{position:absolute;top:10px;right:14px;background:rgba(255,255,255,.08);border:none;color:#eef0ff;font-size:16px;border-radius:999px;width:36px;height:36px;z-index:5;}
 #lifeGaugeWrap{position:absolute;top:0;left:0;right:0;height:5px;background:rgba(255,255,255,.08);z-index:6;}
 #lifeGaugeFill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffd23f,#5ce18a,#3fd6ff,#7c4dff);transition:width .25s ease-out;}
+#comboBonusOverlay{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;opacity:0;transition:opacity .3s ease;text-align:center;width:min(86vw,420px);}
+#comboBonusOverlay.show{opacity:1;}
+#comboBonusImg{width:100%;border-radius:14px;display:block;box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.15);}
+#comboBonusText{margin-top:10px;font-size:20px;font-weight:900;color:#ffd23f;text-shadow:0 0 12px rgba(255,210,63,.8);letter-spacing:1px;}
+@keyframes comboBonusPop{0%{transform:translate(-50%,-50%) scale(.85);}60%{transform:translate(-50%,-50%) scale(1.04);}100%{transform:translate(-50%,-50%) scale(1);}}
+#comboBonusOverlay.pop{animation:comboBonusPop 320ms cubic-bezier(.2,1.4,.4,1);}
 #touchZones{position:absolute;left:0;right:0;bottom:0;top:0;display:flex;z-index:3;}
 .tzone{flex:1;border-left:1px solid rgba(255,255,255,.03);display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(6% + env(safe-area-inset-bottom));transition:background .08s;touch-action:none;-webkit-user-drag:none;}
 .tzone:first-child{border-left:none;}
@@ -111,6 +117,10 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
     <div id="judgeDisplay"></div>
     <button id="pauseBtn">⏸</button>
     <div id="lifeGaugeWrap"><div id="lifeGaugeFill"></div></div>
+    <div id="comboBonusOverlay">
+      <img id="comboBonusImg" alt="">
+      <div id="comboBonusText"></div>
+    </div>
     <div id="touchZones">
       <div class="tzone" data-lane="0"><div class="keycap">S</div></div>
       <div class="tzone" data-lane="1"><div class="keycap">D</div></div>
@@ -306,6 +316,36 @@ const LANE_COLORS=['#ff4d6d','#ff9f4d','#ffd23f','#5ce18a','#3fd6ff','#7c4dff'];
 const LANE_KEYS=['s','d','f','j','k','l'];
 const JUDGE_COLORS={perfect:'#ffd23f',great:'#3fd6ff',good:'#5ce18a',bad:'#b0b0c8',miss:'#ff5566'};
 
+/* ---------- Combo milestone bonus images ---------- */
+const COMBO_BONUS_IMAGES=[
+  {threshold:10,  src:'combo-images/combo1.jpg'},
+  {threshold:25,  src:'combo-images/combo2.jpg'},
+  {threshold:50,  src:'combo-images/combo3.jpg'},
+  {threshold:100, src:'combo-images/combo4.jpg'},
+  {threshold:150, src:'combo-images/combo5.jpg'},
+  {threshold:250, src:'combo-images/combo6.jpg'},
+];
+function checkComboBonus(){
+  for(const entry of COMBO_BONUS_IMAGES){
+    if(game.combo>=entry.threshold && !game.shownComboBonuses.has(entry.threshold)){
+      game.shownComboBonuses.add(entry.threshold);
+      showComboBonus(entry);
+      break;
+    }
+  }
+}
+function showComboBonus(entry){
+  const overlay=document.getElementById('comboBonusOverlay');
+  document.getElementById('comboBonusImg').src=entry.src;
+  document.getElementById('comboBonusText').textContent=entry.threshold+' COMBO!';
+  overlay.classList.add('show');
+  overlay.classList.remove('pop');
+  void overlay.offsetWidth;
+  overlay.classList.add('pop');
+  clearTimeout(showComboBonus._hideT);
+  showComboBonus._hideT=setTimeout(()=>{ overlay.classList.remove('show'); }, 2000);
+}
+
 /* ---------- Perspective "road" projection ----------
    Notes travel from a vanishing point near the horizon toward the
    camera at the hit line, instead of a flat top-to-bottom fall. */
@@ -384,6 +424,7 @@ async function startPlay(song, difficulty){
     lanePtr:new Array(LANE_COUNT).fill(0),
     heldKeys:new Array(LANE_COUNT).fill(false),
     activeHolds:new Array(LANE_COUNT).fill(null),
+    shownComboBonuses:new Set(),
     drawIdx:0,
     judgePopup:{text:'', t:-999},
     paused:false,
@@ -397,6 +438,7 @@ async function startPlay(song, difficulty){
   document.getElementById('scoreDisplay').textContent='0';
   document.getElementById('comboDisplay').style.display='none';
   document.getElementById('lifeGaugeFill').style.width='80%';
+  document.getElementById('comboBonusOverlay').classList.remove('show','pop');
   document.getElementById('pauseOverlay').classList.add('hidden');
   showScreen('play');
   resizeCanvas();
@@ -499,6 +541,7 @@ function applyJudge(result, lane, critical){
     showJudge('MISS', JUDGE_COLORS.miss);
   }
   game.maxCombo=Math.max(game.maxCombo, game.combo);
+  checkComboBonus();
   document.getElementById('scoreDisplay').textContent=String(game.score);
   document.getElementById('lifeGaugeFill').style.width=game.life+'%';
   const comboEl=document.getElementById('comboDisplay');
