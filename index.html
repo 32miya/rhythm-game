@@ -856,6 +856,15 @@ document.getElementById('quitBtn').addEventListener('click', ()=>{
 function endPlay(){
   if(!game || game.ended) return;
   game.ended=true;
+
+  // If this page is embedded (e.g. via <iframe> on a hosting/ranking site),
+  // report the final score to the parent page via postMessage so it can be
+  // recorded without that site needing any other access to this game.
+  if(window.parent && window.parent!==window){
+    try{ window.parent.postMessage({type:'gameOver', score:game.score}, '*'); }
+    catch(e){ console.error('postMessage to parent failed', e); }
+  }
+
   const total=game.chart.notes.length;
   const c=game.counts;
   const acc = total>0 ? ((c.perfect*1 + c.great*0.8 + c.good*0.5 + c.bad*0.2)/total*100) : 100;

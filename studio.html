@@ -482,11 +482,19 @@ async function analyzeBuffer(audioBuffer, onProgress){
   // for a while after its onset instead of decaying immediately - a rung
   // bass/vocal/guitar note, or a ringing cymbal. Scans forward from each
   // onset's frame until energy drops below a fraction of its peak, capped by
-  // the next onset (so one long hold can't swallow the next note) and by a
-  // generous absolute ceiling.
-  const SUSTAIN_ENERGY_RATIO=0.6;
+  // the next *registered* onset and by an absolute ceiling.
+  // Broadband energy alone can't distinguish a genuinely-sustained note from
+  // a drum keeping time underneath one (both keep the total energy up), and
+  // trying to detect the drum hit as a secondary "mini onset" during the
+  // scan proved too unreliable in practice - flux jitters naturally during
+  // any decay, so both a flat cutoff and an adaptive local-mean check ended
+  // up cutting nearly every hold down to a couple frames. Instead this
+  // leans on a stricter energy ratio and a short ceiling so a hold can only
+  // ever span roughly a beat or two, keeping the odds of it running over a
+  // drum hit low without trying to detect that hit directly.
+  const SUSTAIN_ENERGY_RATIO=0.72;
   const MIN_HOLD_SEC=0.45;
-  const MAX_HOLD_SEC=3.0;
+  const MAX_HOLD_SEC=1.4;
   const maxHoldFrames=Math.round(MAX_HOLD_SEC/hopSec);
   for(let i=0;i<onsetsRaw.length;i++){
     const o=onsetsRaw[i];
@@ -1449,6 +1457,15 @@ document.getElementById('quitBtn').addEventListener('click', ()=>{
 function endPlay(){
   if(!game || game.ended) return;
   game.ended=true;
+
+  // If this page is embedded (e.g. via <iframe> on a hosting/ranking site),
+  // report the final score to the parent page via postMessage so it can be
+  // recorded without that site needing any other access to this game.
+  if(window.parent && window.parent!==window){
+    try{ window.parent.postMessage({type:'gameOver', score:game.score}, '*'); }
+    catch(e){ console.error('postMessage to parent failed', e); }
+  }
+
   const total=game.chart.notes.length;
   const c=game.counts;
   const acc = total>0 ? ((c.perfect*1 + c.great*0.8 + c.good*0.5 + c.bad*0.2)/total*100) : 100;
