@@ -1,0 +1,9 @@
+{
+  "name": "rhythm-game-build-tools",
+  "private": true,
+  "description": "Dev-only tooling to produce an obfuscated distribution build of index.html for external linking. Not part of the deployed game itself.",
+  "devDependencies": {
+    "terser": "^5.49.0",
+    "javascript-obfuscator": "^5.4.7"
+  }
+}
