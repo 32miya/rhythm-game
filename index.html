@@ -73,9 +73,12 @@ body{position:fixed;top:0;left:0;right:0;bottom:0;}
 #screen-result{align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;}
 #screen-result h2{font-size:20px;color:#9aa0c0;letter-spacing:3px;}
 #rankBig{font-size:64px;font-weight:900;text-shadow:0 0 20px rgba(124,77,255,.6);}
-#resultBody{background:#141428;border:1px solid #23234a;border-radius:16px;padding:20px 28px;min-width:240px;}
+#resultBody{background:#141428;border:1px solid #23234a;border-radius:16px;padding:20px 28px;min-width:240px;max-width:88vw;}
 #resultBody .row{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;color:#c6caee;}
 #resultBody .row b{color:#eef0ff;}
+#resultBody .highscore-row{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px;color:#ffd23f;padding:2px 0 14px;margin-bottom:10px;border-bottom:1px solid #23234a;text-align:center;}
+#resultBody .highscore-row b{font-size:22px;color:#fff;}
+#resultBody .highscore-row small{display:block;font-size:11px;color:#9aa0c0;margin-top:2px;max-width:100%;overflow-wrap:break-word;}
 .result-btns{display:flex;gap:12px;}
 .result-btns button{padding:12px 24px;border-radius:999px;border:none;font-size:14px;font-weight:700;cursor:pointer;}
 #retryBtn{background:linear-gradient(90deg,#7c4dff,#3fd6ff);color:#0a0a14;}
@@ -185,6 +188,18 @@ function setVolumeLevel(level){
     if(el) el.textContent=String(level);
   }
 }
+/* ---------- High score (persisted across sessions) ---------- */
+const HIGH_SCORE_KEY='rhythmGameHighScore';
+function getHighScore(){
+  try{
+    const raw=localStorage.getItem(HIGH_SCORE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function saveHighScore(score, songName, diffLabel){
+  localStorage.setItem(HIGH_SCORE_KEY, JSON.stringify({score, songName, diffLabel}));
+}
+
 // Holds at most one decoded AudioBuffer at a time. With 15 built-in tracks
 // (one over an hour long), keeping every decode in memory simultaneously
 // would use several GB of RAM and reliably crash mobile browsers.
@@ -857,7 +872,14 @@ function endPlay(){
   rankEl.classList.remove('pop');
   void rankEl.offsetWidth;
   rankEl.classList.add('pop');
+
+  const prevHigh=getHighScore();
+  const isNewHigh=!prevHigh || game.score>prevHigh.score;
+  if(isNewHigh) saveHighScore(game.score, game.song.name, DIFF_LABELS[game.difficulty]);
+  const shownHigh=isNewHigh ? {score:game.score, songName:game.song.name, diffLabel:DIFF_LABELS[game.difficulty]} : prevHigh;
+
   document.getElementById('resultBody').innerHTML=
+    '<div class="highscore-row"><span>'+(isNewHigh?'🎉 NEW HIGH SCORE!':'ハイスコア')+'</span><b>'+shownHigh.score+'</b><small>'+shownHigh.songName+' / '+shownHigh.diffLabel+'</small></div>'+
     '<div class="row"><span>スコア</span><b>'+game.score+'</b></div>'+
     '<div class="row"><span>最大コンボ</span><b>'+game.maxCombo+'</b></div>'+
     '<div class="row"><span>精度</span><b>'+acc.toFixed(1)+'%</b></div>'+
